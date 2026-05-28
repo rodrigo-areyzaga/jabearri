@@ -42,7 +42,7 @@ HIGH — authorization regression — broken access control (OWASP A01)
        curl -H "Authorization: Bearer $TOKEN_B" ".../api/orders/ord-1001"
 ```
 
-Bob received the same order data as Alice. The endpoint may be missing an ownership check.
+Bob received structurally identical authenticated data to Alice. The endpoint may be missing an ownership check.
 
 This is authorization regression testing: run it on every commit, catch access control failures the moment they're introduced, before they reach production.
 
@@ -53,9 +53,11 @@ This is authorization regression testing: run it on every commit, catch access c
 1. accguard starts as a local HTTP proxy on port `8877`
 2. Your tests run normally — accguard silently records every authenticated request
 3. When tests finish, accguard replays each request using a second user's token
-4. Any endpoint that returns the same data to the wrong user is flagged
+4. Any endpoint that returns structurally identical authenticated data to a different user is flagged
 
 No changes to your test code. No new testing concepts. One config file.
+
+![accguard architecture](docs/architecture.svg)
 
 ### How confirmation works — deterministic, not heuristic
 
@@ -81,7 +83,7 @@ The hashes either match or they don't. There is no scoring, no threshold, no gre
 
 For non-JSON responses it falls back to a raw byte hash. Body size is never used as a signal.
 
-**Scope:** accguard detects endpoints that return structurally identical data to a second user. Partial information leaks and structurally different but unauthorized responses require manual review. The tool prioritises precision — one confirmed finding you can trust is worth more than ten warnings you have to triage.
+**Scope:** accguard detects endpoints that return structurally identical authenticated data to a different user. Partial information leaks and structurally different but unauthorized responses require manual review. The tool prioritises precision — one confirmed finding you can trust is worth more than ten warnings you have to triage.
 
 ### Token type awareness
 
