@@ -25,15 +25,17 @@ function sortKeys(val) {
 function contentHash(body, contentType) {
   if (!body || body.length === 0) return 'empty';
 
-  if (contentType && contentType.includes('application/json')) {
+  // Match all JSON content-type variants: application/json, application/vnd.api+json,
+  // application/json;charset=utf-8, etc.
+  if (contentType && /json/i.test(contentType)) {
     try {
       const parsed     = JSON.parse(body.toString('utf8'));
       const normalized = JSON.stringify(sortKeys(parsed));
-      return 'json:' + crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 16);
+      return 'json:' + crypto.createHash('sha256').update(normalized).digest('hex');
     } catch { /* fall through */ }
   }
 
-  return 'raw:' + crypto.createHash('sha256').update(body).digest('hex').slice(0, 16);
+  return 'raw:' + crypto.createHash('sha256').update(body).digest('hex');
 }
 
 // ── Auth headers ──────────────────────────────────────────────────────────────
@@ -52,20 +54,24 @@ function authHeaders(secondToken, entry) {
 function assessFinding(original, replay) {
   if (replay.statusCode < 200  || replay.statusCode >= 300) return 'none';
   if (original.statusCode < 200 || original.statusCode >= 300) return 'none';
-  if (!replay.body || replay.body.length < 10) return 'none';
 
-  // Semantic hash match — highest confidence
+  // Semantic hash match — highest confidence.
+  // Body size is NOT checked here — hash matches are valid even for tiny
+  // responses like [] or {"ok":true}. Those are real data, not empty 200s.
   if (original.contentHash && replay.contentHash &&
       original.contentHash !== 'empty' &&
       original.contentHash === replay.contentHash) {
     return 'confirmed';
   }
 
-  // Size proximity fallback — only when no hashes available at all
+  // Size proximity fallback — only when no hashes are available at all.
+  // The 10-byte guard applies here only — to filter empty or trivial 200s
+  // in the absence of semantic hash data.
   const originalHasHash = original.contentHash && original.contentHash !== 'empty';
   const replayHasHash   = replay.contentHash   && replay.contentHash   !== 'empty';
   if (!originalHasHash && !replayHasHash) {
-    if (original.contentLength > 20 && replay.body.length > 0) {
+    if (replay.body && replay.body.length >= 10 &&
+        original.contentLength > 20) {
       const ratio = replay.body.length / original.contentLength;
       if (ratio > 0.95 && ratio < 1.05) return 'possible';
     }
@@ -86,7 +92,7 @@ function replayRequest({ targetUrl, entry, secondToken }) {
       method:   entry.method,
       headers: {
         'accept':     'application/json',
-        'user-agent': 'accguard/0.9',
+        'user-agent': 'accguard/0.9.2',
         ...authHeaders(secondToken, entry),
       },
     };
@@ -137,11 +143,11 @@ async function runReplay({ store, targetUrl, secondToken, logger }) {
     }
 
     const confidence = assessFinding(entry, result);
-    if (confidence === 'none') continue;
-
     const authFlag = (entry.tokenType || 'bearer') === 'cookie'
       ? `-b "${entry.cookieName || 'session'}=$TOKEN_B"`
       : `-H "Authorization: Bearer $TOKEN_B"`;
+
+    if (confidence === 'none') continue;
 
     findings.push({
       severity:       'high',

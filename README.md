@@ -85,6 +85,38 @@ For non-JSON responses it falls back to a raw byte hash. Body size is never used
 
 **Scope:** accguard detects endpoints that return structurally identical authenticated data to a different user. Partial information leaks and structurally different but unauthorized responses require manual review. The tool prioritises precision — one confirmed finding you can trust is worth more than ten warnings you have to triage.
 
+### Known scope limitations
+
+A few edge cases worth knowing before you integrate:
+
+**axios doesn't respect `HTTP_PROXY` by default.** If your test suite uses axios, you need to configure the proxy explicitly:
+```javascript
+const axios = require('axios');
+const { HttpProxyAgent } = require('http-proxy-agent');
+const agent = new HttpProxyAgent('http://127.0.0.1:8877');
+axios.defaults.httpAgent = agent;
+```
+Or set the proxy directly in your axios config per request.
+
+**`204 No Content` responses are not flagged.** Some APIs return `204` with no body on successful resource access. accguard requires a non-empty response body to confirm a finding — a `204` replay will not be reported even if user B should not have access. These endpoints require manual verification.
+
+**Multi-user test suites.** If your test suite exercises more than two users, accguard records all of their traffic but replays everything with a single `ACCGUARD_TOKEN_B`. Requests made by user C will be replayed as user B, which may not reflect the access boundary you want to test. Document your expected principal pairs explicitly in your test config.
+
+**accguard models identity through authorization credentials only.** Applications using additional tenant-isolation headers — such as `X-Tenant-ID`, `X-Org-ID`, or custom routing metadata — may not be fully covered by token-swap replay alone. If your app uses secondary isolation mechanisms beyond bearer tokens or session cookies, those endpoints require additional manual verification.
+
+**Responses with volatile fields may not be flagged.** If API responses include fields that change per-request — timestamps, trace IDs, request UUIDs, nonces — the normalized JSON hashes will differ between user A and user B even when the underlying data is identical. This is an intentional tradeoff: determinism over recall. A future configuration option (`ignoreKeys`) is planned for teams whose APIs include volatile metadata fields.
+
+**Some environments bypass proxies for localhost by default.** If requests are not being recorded, try setting `NO_PROXY` to empty or using `--noproxy` explicitly:
+```bash
+# curl
+curl --noproxy "" --proxy http://127.0.0.1:8877 http://localhost:3000/api/orders
+
+# Node.js / npm test
+NO_PROXY="" HTTP_PROXY=http://127.0.0.1:8877 npm test
+```
+
+**Repeated endpoint calls are deduplicated.** If your test suite calls `GET /api/orders/1001` fifteen times (setup, assertions, teardown), accguard records all fifteen but replays once. One finding per unique endpoint — not fifteen.
+
 ### Token type awareness
 
 accguard records how each token was delivered — `Authorization: Bearer` header or session cookie — and replays using the same mechanism. Rails apps using `session=` cookies, Django apps using `sessionid=`, and Bearer token APIs all work correctly without configuration.
@@ -213,7 +245,7 @@ Each finding is deterministic — hashes either match or they don't.
 These are constraints, not missing features. They communicate what the tool is.
 
 - No HTTPS interception — no certificate injection, ever
-- No request mutation — requests are forwarded byte-for-byte unchanged
+- No request mutation or fuzzing — accguard does not alter method, path, query, or body
 - No browser automation or crawling — only traffic your tests generate
 - No port scanning or host discovery
 - No cloud telemetry — nothing leaves your machine
@@ -243,6 +275,7 @@ You must only use accguard against systems you own or have explicit written perm
 |---|---|
 | `ACCGUARD_TOKEN_B`   | Second user's session token — required for detection |
 | `ACCGUARD_CONFIG`    | Path to config file — default `./accguard.config.json` |
+| `ACCGUARD_MAX_ENTRIES` | Max session store entries — default `10000` |
 
 ---
 
@@ -251,7 +284,7 @@ You must only use accguard against systems you own or have explicit written perm
 ```
 Your tests
     ↓  HTTP_PROXY=127.0.0.1:8877
-proxy.js          →  forwards requests unchanged · hashes each response
+proxy.js          →  forwards application requests · hashes each response
 session-store.js  →  records path · token type · resource IDs · content hash
 tests finish
     ↓

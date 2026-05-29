@@ -71,18 +71,16 @@ function printFindings(findings, store) {
   });
 
   console.log('\n' + divider);
-  console.log(`\n  ${findings.length} authorization regression${findings.length > 1 ? 's' : ''} detected.`);
+  console.log(`\n  ${findings.length} authorization regression${findings.length !== 1 ? 's' : ''} detected.`);
   console.log(`  Each finding is deterministic — hashes either match or they don't.\n`);
 }
 
 // ── Save report — A10 compliant ───────────────────────────────────────────────
-// Findings are always printed to terminal first.
-// File save failure is surfaced clearly — findings are never silently lost.
 
 function saveReport(findings, store, outputPath) {
   const cov = coverageSummary(store);
   const report = {
-    version:     '0.9.1',
+    version:     '0.9.2',
     generatedAt: new Date().toISOString(),
     summary: {
       observed:         cov.observed,

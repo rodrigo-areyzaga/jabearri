@@ -11,7 +11,7 @@ const { ProxyCore }                 = require('./proxy');
 const { runReplay }                 = require('./replay');
 const { printFindings, saveReport } = require('./reporter');
 
-const VERSION         = '0.9.1';
+const VERSION         = '0.9.2';
 const CONSENT_FILE    = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.accguard_consent');
 const REQUIRED_PHRASE = 'I own or have written authorization to test the target system';
 
@@ -109,7 +109,7 @@ async function main() {
   }
 
   const store = new SessionStore();
-  const proxy = new ProxyCore({ target, scope, exclude, store });
+  const proxy = new ProxyCore({ target, scope, exclude, store, onFlush: () => triggerFlush() });
 
   // A10: proxy listen failure should surface clearly
   try {
@@ -129,15 +129,6 @@ async function main() {
   console.log(`  ${'─'.repeat(44)}`);
   console.log(`  Set HTTP_PROXY=http://127.0.0.1:${port} and run your tests.`);
   console.log(`  Press Ctrl+C or POST /--flush when done.\n`);
-
-  // CI flush endpoint
-  proxy.server.on('request', (req, res) => {
-    if (req.url === '/--flush' && req.method === 'POST') {
-      res.writeHead(200);
-      res.end('flushing');
-      triggerFlush();
-    }
-  });
 
   const triggerFlush = async () => {
     console.log('\n[accguard] Stopping proxy and running replay...');

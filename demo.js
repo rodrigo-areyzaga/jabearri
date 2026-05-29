@@ -8,7 +8,7 @@
 // cd accguard
 // node demo.js
 //
-// That's it. No install. No config. No accounts.
+// No install. No config. No accounts.
 // Under 90 seconds from clone to first finding.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -20,6 +20,7 @@ const { printFindings, saveReport } = require(root + '/src/reporter');
 const { verifyTarget, verifyScope } = require(root + '/src/safety');
 const http = require('http');
 
+const VERSION      = '0.9.2';
 const SHOPLAB_PORT = 3100;
 const PROXY_PORT   = 8877;
 const TARGET       = `http://127.0.0.1:${SHOPLAB_PORT}`;
@@ -54,16 +55,21 @@ async function run() {
   const line = '─'.repeat(58);
 
   console.log('\n' + line);
-  console.log('  accguard — authorization regression testing');
+  console.log(`  accguard v${VERSION} — authorization regression testing`);
   console.log('  ShopLab demo · 4 hidden IDOR vulnerabilities');
   console.log(line + '\n');
 
-  // 1. Start ShopLab
+  // 1. Start ShopLab — explicitly call listen() since we require it as a module
   process.env.SHOPLAB_PORT = String(SHOPLAB_PORT);
   const shop = require(root + '/test/shoplab');
-  await new Promise(r => shop.once('listening', r));
+
+  await new Promise((resolve, reject) => {
+    shop.once('error', reject);
+    shop.listen(SHOPLAB_PORT, '127.0.0.1', resolve);
+  });
+
   console.log(`  ✓  ShopLab running   http://127.0.0.1:${SHOPLAB_PORT}`);
-  console.log(`     Open it in your browser — it looks like a normal shop.`);
+  console.log(`     Open it in your browser — looks like a normal shop.`);
   console.log(`     Four IDOR vulnerabilities are completely invisible in the UI.\n`);
 
   // 2. Start accguard proxy
@@ -78,6 +84,7 @@ async function run() {
     store,
     logger:  { log: () => {}, error: console.error },
   });
+
   await proxy.listen(PROXY_PORT);
   console.log(`  ✓  accguard proxy     http://127.0.0.1:${PROXY_PORT}\n`);
 
@@ -122,7 +129,8 @@ async function run() {
   if (findings.length === 0) {
     console.log('  No unauthorized data replays detected.');
   } else {
-    console.log(`  ${findings.length} of 4 IDOR vulnerabilities confirmed.`);
+    const classes = new Set(findings.map(f => f.path.replace(/[a-z0-9-]+$/i, ':id'))).size;
+    console.log(`  ${findings.length} unauthorized access attempts confirmed across ${classes} IDOR endpoint pattern${classes > 1 ? 's' : ''}.`);
     console.log(`  Each finding above includes a curl command to reproduce it.`);
     console.log(`  Full report saved to accguard-demo-report.json`);
   }

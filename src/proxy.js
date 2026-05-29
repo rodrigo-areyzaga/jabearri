@@ -1,18 +1,25 @@
 'use strict';
 
-const http  = require('http');
-const https = require('https');
+const http   = require('http');
+const https  = require('https');
 const { URL } = require('url');
 const { contentHash } = require('./replay');
 
+// Headers to strip before forwarding.
+// accept-encoding  — forces uncompressed JSON for reliable hashing
+// transfer-encoding — stale framing from chunked requests; we buffer fully
+// connection        — hop-by-hop, must not be forwarded per HTTP spec
+const STRIP_HEADERS = new Set(['accept-encoding', 'transfer-encoding', 'connection']);
+
 class ProxyCore {
-  constructor({ target, scope, exclude = [], store, logger }) {
-    this.target  = new URL(target);
-    this.scope   = scope;
-    this.exclude = exclude;
-    this.store   = store;
-    this.logger  = logger || console;
-    this.server  = null;
+  constructor({ target, scope, exclude = [], store, logger, onFlush }) {
+    this.target   = new URL(target);
+    this.scope    = scope;
+    this.exclude  = exclude;
+    this.store    = store;
+    this.logger   = logger || console;
+    this.onFlush  = onFlush || null; // callback for CI /--flush endpoint
+    this.server   = null;
   }
 
   _inScope(pathname) {
@@ -20,14 +27,43 @@ class ProxyCore {
     return this.scope.some(p => pathname.startsWith(p));
   }
 
-  _forward(incomingReq, bodyBuffer) {
+  _forward(incomingReq, bodyBuffer, inScope) {
     return new Promise((resolve, reject) => {
+      // Normalize absolute URLs — HTTP_PROXY clients send full URLs as path:
+      // "GET http://127.0.0.1:3100/api/orders/1" instead of "GET /api/orders/1"
+      // Many frameworks reject absolute-form request targets.
+      let targetPath;
+      try {
+        const parsed = new URL(incomingReq.url, this.target.href);
+        targetPath = parsed.pathname + parsed.search;
+      } catch {
+        targetPath = incomingReq.url;
+      }
+
+      // For in-scope requests, strip accept-encoding so upstream returns
+      // uncompressed JSON that can be reliably hashed.
+      const headers = { ...incomingReq.headers, host: this.target.host };
+      // Always strip hop-by-hop and encoding headers.
+      // transfer-encoding and connection must not be forwarded per HTTP/1.1 spec.
+      // accept-encoding stripped for in-scope requests to ensure uncompressed JSON.
+      for (const h of STRIP_HEADERS) {
+        if (h === 'accept-encoding' && !inScope) continue; // only strip for in-scope
+        delete headers[h];
+      }
+      // Recalculate content-length from the actual buffer — original header
+      // may not match after chunked reassembly or proxy middleware manipulation.
+      if (bodyBuffer && bodyBuffer.length) {
+        headers['content-length'] = bodyBuffer.length;
+      } else {
+        delete headers['content-length'];
+      }
+
       const options = {
         hostname: this.target.hostname,
         port:     this.target.port || (this.target.protocol === 'https:' ? 443 : 80),
-        path:     incomingReq.url,
+        path:     targetPath,
         method:   incomingReq.method,
-        headers:  { ...incomingReq.headers, host: this.target.host },
+        headers,
       };
 
       const transport = this.target.protocol === 'https:' ? https : http;
@@ -42,6 +78,7 @@ class ProxyCore {
       });
 
       req.on('error', reject);
+      req.setTimeout(30000, () => { req.destroy(); reject(new Error('upstream timeout after 30s')); });
       if (bodyBuffer && bodyBuffer.length) req.write(bodyBuffer);
       req.end();
     });
@@ -57,13 +94,23 @@ class ProxyCore {
   }
 
   async _handleRequest(req, res) {
-    const parsed   = new URL(req.url, 'http://localhost');
-    const inScope  = this._inScope(parsed.pathname);
+    // CI flush endpoint — handled entirely here, not forwarded.
+    // onFlush callback is set by cli.js so the proxy doesn't need to
+    // know about replay logic.
+    if (req.url === '/--flush' && req.method === 'POST') {
+      res.writeHead(200);
+      res.end('flushing');
+      if (this.onFlush) setImmediate(this.onFlush); // respond first, then flush
+      return;
+    }
+
+    const parsed  = new URL(req.url, 'http://localhost');
+    const inScope = this._inScope(parsed.pathname);
     const bodyBuffer = await this._readBody(req);
 
     let upstream;
     try {
-      upstream = await this._forward(req, bodyBuffer);
+      upstream = await this._forward(req, bodyBuffer, inScope);
     } catch (err) {
       this.logger.error(`[accguard] Forward error: ${err.message}`);
       res.writeHead(502);
@@ -87,7 +134,7 @@ class ProxyCore {
   }
 
   listen(port) {
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       this.server = http.createServer((req, res) => {
         this._handleRequest(req, res).catch(err => {
           this.logger.error(`[accguard] Unhandled error: ${err.message}`);
@@ -105,8 +152,12 @@ class ProxyCore {
         socket.end();
       });
 
+      // Reject on startup errors — e.g. port already in use
+      this.server.once('error', reject);
+
       // SAFETY: bind only to loopback — cannot be reached from outside this machine
       this.server.listen(port, '127.0.0.1', () => {
+        this.server.removeListener('error', reject);
         this.logger.log(`[accguard] Proxy listening on 127.0.0.1:${port} → ${this.target.href}`);
         resolve();
       });

@@ -32,6 +32,32 @@ assert(isPrivateHost('localhost'),      'localhost is private');
 assert(isPrivateHost('10.0.0.1'),       '10.x is private');
 assert(isPrivateHost('192.168.1.50'),   '192.168.x is private');
 assert(!isPrivateHost('8.8.8.8'),       '8.8.8.8 is NOT private');
+
+// ── IP normalization — bypass prevention ──────────────────────────────────────
+const { normalizeIPv4 } = require(root + '/src/safety');
+
+// Standard dotted-decimal passes through unchanged
+assert(normalizeIPv4('127.0.0.1')    === '127.0.0.1', 'dotted-decimal unchanged');
+assert(normalizeIPv4('10.0.0.1')     === '10.0.0.1',  'private dotted-decimal unchanged');
+
+// 32-bit decimal — the main bypass vector
+assert(normalizeIPv4('2130706433')   === '127.0.0.1', 'decimal 2130706433 → 127.0.0.1');
+assert(normalizeIPv4('167772161')    === '10.0.0.1',  'decimal 167772161  → 10.0.0.1');
+assert(normalizeIPv4('3232235521')   === '192.168.0.1','decimal 3232235521 → 192.168.0.1');
+
+// Hex notation
+assert(normalizeIPv4('0x7f000001')   === '127.0.0.1', 'hex 0x7f000001 → 127.0.0.1');
+assert(normalizeIPv4('0x0a000001')   === '10.0.0.1',  'hex 0x0a000001 → 10.0.0.1');
+
+// Octal first octet
+assert(normalizeIPv4('0177.0.0.1')   === '127.0.0.1', 'octal 0177.0.0.1 → 127.0.0.1');
+
+// isPrivateHost catches normalized forms
+assert(isPrivateHost('2130706433'),  'decimal loopback 2130706433 is private');
+assert(isPrivateHost('167772161'),   'decimal 10.x 167772161 is private');
+assert(isPrivateHost('0x7f000001'),  'hex loopback 0x7f000001 is private');
+assert(isPrivateHost('0177.0.0.1'),  'octal loopback 0177.0.0.1 is private');
+assert(!isPrivateHost('8.8.8.8'),    'public IP 8.8.8.8 is not private (sanity check)');
 assert(!isPrivateHost('93.184.216.34'), 'example.com IP is NOT private');
 
 try { verifyScope(null);     assert(false, 'null scope should throw'); }
@@ -55,12 +81,19 @@ assert(bearer.type === 'bearer',   'bearer type identified');
 assert(bearer.cookieName === null, 'bearer has no cookieName');
 
 const cookie = extractToken({ cookie: 'session=xyz789; other=foo' });
-assert(cookie !== null,            'extracts session cookie');
-assert(cookie.raw === 'xyz789',    'cookie raw value correct');
-assert(cookie.type === 'cookie',   'cookie type identified');
-assert(cookie.cookieName !== null, 'cookie has cookieName');
+assert(cookie !== null,                  'extracts session cookie');
+assert(cookie.raw === 'xyz789',          'cookie raw value correct');
+assert(cookie.type === 'cookie',         'cookie type identified');
+assert(cookie.cookieName === 'session',  'cookieName is session not other cookie');
 
-assert(extractToken({}) === null,  'returns null when no token');
+// Regression: cookieName must come from the matched session cookie,
+// not from the first cookie in the header string.
+const wrongOrder = extractToken({ cookie: 'theme=dark; session=abc123' });
+assert(wrongOrder !== null,              'extracts token when session is not first cookie');
+assert(wrongOrder.raw === 'abc123',      'correct token value when session is not first');
+assert(wrongOrder.cookieName === 'session', 'cookieName is session not theme');
+
+assert(extractToken({}) === null,        'returns null when no token');
 
 // Resource ID extraction
 const ids1 = extractResourceIds('/api/orders/1042');
@@ -104,6 +137,22 @@ cookieStore.record({ method: 'GET', url: '/api/profile/99', headers: { cookie: '
 assert(cookieStore.entries[0].tokenType === 'cookie', 'cookie tokenType recorded');
 assert(cookieStore.entries[0].cookieName !== null,    'cookieName recorded');
 
+// Deduplication — same endpoint recorded multiple times should replay once
+const dedupStore = new SessionStore();
+dedupStore.record({ method: 'GET', url: '/api/orders/1001', headers: { authorization: 'Bearer tok-a' }, statusCode: 200, contentLength: 100, contentHash: 'json:abc' });
+dedupStore.record({ method: 'GET', url: '/api/orders/1001', headers: { authorization: 'Bearer tok-a' }, statusCode: 200, contentLength: 100, contentHash: 'json:abc' });
+dedupStore.record({ method: 'GET', url: '/api/orders/1001', headers: { authorization: 'Bearer tok-a' }, statusCode: 200, contentLength: 100, contentHash: 'json:abc' });
+assert(dedupStore.size() === 3,              'store records all three entries');
+assert(dedupStore.replayable().length === 1, 'deduplication collapses to one replayable entry');
+
+// Memory cap — store stops at MAX_ENTRIES
+const capStore = new SessionStore();
+for (let i = 0; i < 10002; i++) {
+  capStore.record({ method: 'GET', url: '/api/orders/' + i, headers: { authorization: 'Bearer tok-a' }, statusCode: 200, contentLength: 50 });
+}
+assert(capStore.size() === 10000, 'store caps at 10000 entries');
+assert(capStore._capped === true, 'store marks itself as capped');
+
 // ── replay.js — semantic comparison ───────────────────────────────────────────
 section('replay.js — semantic comparison');
 const { assessFinding, contentHash, sortKeys } = require(root + '/src/replay');
@@ -120,6 +169,7 @@ const b2 = Buffer.from('{"name":"Alice","id":1}');
 const h1 = contentHash(b1, 'application/json');
 const h2 = contentHash(b2, 'application/json');
 assert(h1.startsWith('json:'), 'JSON produces json: hash');
+assert(h1.length === 69, 'full SHA-256 hash length (json: + 64 hex chars)'); // json: = 5 chars
 assert(h1 === h2,              'same JSON different key order = same hash');
 
 const b3 = Buffer.from('{"id":2,"name":"Bob"}');
@@ -127,6 +177,33 @@ assert(h1 !== contentHash(b3, 'application/json'), 'different JSON = different h
 
 const hRaw = contentHash(Buffer.from('<html>test</html>'), 'text/html');
 assert(hRaw.startsWith('raw:'), 'non-JSON produces raw: hash');
+
+// JSON content-type variants — must all use semantic hashing
+const bodyX = Buffer.from(JSON.stringify({ id: 101, status: 'active' }));
+const bodyY = Buffer.from(JSON.stringify({ status: 'active', id: 101 }));
+const hVendor  = contentHash(bodyX, 'application/vnd.api+json; charset=utf-8');
+const hCharset = contentHash(bodyY, 'application/json; charset=utf-8');
+assert(hVendor.startsWith('json:'),  'vnd.api+json variant uses semantic hash');
+assert(hCharset.startsWith('json:'), 'json;charset=utf-8 variant uses semantic hash');
+assert(hVendor === hCharset,         'normalized keys match across JSON content-type variants');
+
+// Tiny body with matching hash — must be confirmed (not silenced by 10-byte threshold)
+assert(
+  assessFinding(
+    { statusCode: 200, contentLength: 2, contentHash: 'json:tinyhash' },
+    { statusCode: 200, body: Buffer.from('[]'), bodyLength: 2, contentHash: 'json:tinyhash' }
+  ) === 'confirmed',
+  'tiny body with matching hash is confirmed — hash match overrides size threshold'
+);
+
+// Empty body with matching hash — should not be confirmed (empty is empty)
+assert(
+  assessFinding(
+    { statusCode: 200, contentLength: 0, contentHash: 'empty' },
+    { statusCode: 200, body: Buffer.from(''), bodyLength: 0, contentHash: 'empty' }
+  ) === 'none',
+  'empty body is not a finding even with matching empty hash'
+);
 
 // assessFinding
 assert(

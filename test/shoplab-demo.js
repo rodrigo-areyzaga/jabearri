@@ -57,10 +57,13 @@ async function run() {
   console.log('  ShopLab × accguard — demo');
   console.log(divider + '\n');
 
-  // 1. Start ShopLab
+  // 1. Start ShopLab — explicitly call listen() since required as a module
   process.env.SHOPLAB_PORT = String(SHOPLAB_PORT);
   const shop = require(root + '/test/shoplab');
-  await new Promise(r => shop.once('listening', r));
+  await new Promise((resolve, reject) => {
+    shop.once('error', reject);
+    shop.listen(SHOPLAB_PORT, '127.0.0.1', resolve);
+  });
   console.log(`[1/4] ShopLab ready   → http://127.0.0.1:${SHOPLAB_PORT}`);
 
   // 2. Start accguard
@@ -114,7 +117,8 @@ async function run() {
   saveReport(findings, store, 'shoplab-report.json');
 
   console.log(divider);
-  console.log(`  ${findings.length}/4 IDOR vulnerabilities detected`);
+  const classes = new Set(findings.map(f => f.path.replace(/[a-z0-9-]+$/i, ":id"))).size;
+  console.log(`  ${findings.length} unauthorized access attempts confirmed across ${classes} IDOR endpoint pattern${classes > 1 ? "s" : ""}.`);
   console.log(divider + '\n');
 
   shop.close();
