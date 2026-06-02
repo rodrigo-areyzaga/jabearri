@@ -98,6 +98,23 @@ axios.defaults.httpAgent = agent;
 ```
 Or set the proxy directly in your axios config per request.
 
+**Playwright doesn't use `HTTP_PROXY` by default.** Configure the proxy explicitly in your Playwright config:
+```javascript
+// playwright.config.js
+module.exports = {
+  use: {
+    proxy: { server: 'http://127.0.0.1:8877' },
+  },
+};
+```
+Or per-browser in your test setup:
+```javascript
+const browser = await chromium.launch();
+const context = await browser.newContext({
+  proxy: { server: 'http://127.0.0.1:8877' }
+});
+```
+
 **`204 No Content` responses are not flagged.** Some APIs return `204` with no body on successful resource access. accguard requires a non-empty response body to confirm a finding — a `204` replay will not be reported even if user B should not have access. These endpoints require manual verification.
 
 **Multi-user test suites.** If your test suite exercises more than two users, accguard records all of their traffic but replays everything with a single `ACCGUARD_TOKEN_B`. Requests made by user C will be replayed as user B, which may not reflect the access boundary you want to test. Document your expected principal pairs explicitly in your test config.
@@ -105,6 +122,12 @@ Or set the proxy directly in your axios config per request.
 **accguard models identity through authorization credentials only.** Applications using additional tenant-isolation headers — such as `X-Tenant-ID`, `X-Org-ID`, or custom routing metadata — may not be fully covered by token-swap replay alone. If your app uses secondary isolation mechanisms beyond bearer tokens or session cookies, those endpoints require additional manual verification.
 
 **Responses with volatile fields may not be flagged.** If API responses include fields that change per-request — timestamps, trace IDs, request UUIDs, nonces — the normalized JSON hashes will differ between user A and user B even when the underlying data is identical. This is an intentional tradeoff: determinism over recall. A future configuration option (`ignoreKeys`) is planned for teams whose APIs include volatile metadata fields.
+
+**Windows: `node` not recognized in PowerShell.** If you get `node: command not found` after installing Node.js, close and reopen PowerShell. If that doesn't work, refresh PATH without reopening:
+```powershell
+$env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+```
+Then run `node test/run.js` again.
 
 **Some environments bypass proxies for localhost by default.** If requests are not being recorded, try setting `NO_PROXY` to empty or using `--noproxy` explicitly:
 ```bash
