@@ -4,23 +4,26 @@
 
 **Authorization regression testing from real authenticated traffic.**
 
+Authentication proves who you are.
+Authorization proves what you can access.
+accguard detects when those boundaries fail: authenticated user ≠ authorized user
+
 Broken access control remains the most common high-impact API vulnerability. Existing scanners can't reliably catch it — they don't have authenticated context. They've never logged into your app.
 
 Your test suite has that context. accguard uses it.
 
 ---
 
-## Try it now
+## Try the BOLA demo
 
 ```bash
-git clone https://github.com/rodrigo-areyzaga/accguard
-cd accguard
-node demo.js
+git clone https://github.com/rodrigo-areyzaga/accguard-bola-demo
+cd accguard-bola-demo
+npm install
+npm run demo
 ```
 
-No install. No config. No accounts. Under 90 seconds from clone to first finding.
-
----
+Under 90 seconds from clone to confirmed authorization regression.
 
 See [accguard-bola-demo](https://github.com/rodrigo-areyzaga/accguard-bola-demo) for a runnable example — catches a real BOLA vulnerability in under 90 seconds.
 
