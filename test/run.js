@@ -280,6 +280,59 @@ assert(ids4.some(i => i.type === 'slug' && i.value === 'ord-1001'), 'extracts sl
 const ids5 = extractResourceIds('/api/users/user-alice');
 assert(ids5.some(i => i.value === 'user-alice'), 'extracts string slug ID');
 
+// ── extractResourceIds — candidate-filter tightening ────────────────────────
+section('extractResourceIds — candidate filter');
+
+// Version segments must NOT be treated as resource IDs
+const idsV2 = extractResourceIds('/api/v2/status');
+assert(idsV2.length === 0, 'v2 version segment is not a resource ID');
+
+const idsV1 = extractResourceIds('/api/v1/users/1042');
+assert(!idsV1.some(i => i.value === '1'), 'v1 version segment skipped');
+assert(idsV1.some(i => i.value === '1042'), 'real integer ID after version is kept');
+
+const idsV10 = extractResourceIds('/api/v10/orders');
+assert(idsV10.length === 0, 'v10 version segment skipped, no other IDs');
+
+const idsVAlpha = extractResourceIds('/api/v2alpha/health');
+assert(idsVAlpha.length === 0, 'v2alpha version segment skipped');
+
+// Hyphenated route names directly under /api are NOT slugs
+const idsHyphen = extractResourceIds('/api/order-history');
+assert(idsHyphen.length === 0, 'order-history under /api is a route name, not a slug');
+
+const idsHyphen2 = extractResourceIds('/api/user-settings');
+assert(idsHyphen2.length === 0, 'user-settings under /api is a route name, not a slug');
+
+// Slugs with digits are always kept (digit = likely a resource instance)
+const idsSlugDigit = extractResourceIds('/api/ord-1001');
+assert(idsSlugDigit.some(i => i.type === 'slug' && i.value === 'ord-1001'),
+  'slug with digit directly under /api is kept');
+
+// Slugs under collection parents are kept (even without digits)
+const idsSlugCollection = extractResourceIds('/api/users/user-alice');
+assert(idsSlugCollection.some(i => i.value === 'user-alice'),
+  'slug under collection parent is kept');
+
+const idsSlugDeep = extractResourceIds('/api/orders/order-detail');
+assert(idsSlugDeep.some(i => i.value === 'order-detail'),
+  'hyphenated segment under collection parent is a slug');
+
+// Query-string: only id-like keys are extracted
+const idsQueryId = extractResourceIds('/api/search?id=1001');
+assert(idsQueryId.some(i => i.value === '1001'), 'query ?id=1001 extracts the ID');
+
+const idsQueryOrderId = extractResourceIds('/api/search?orderId=5005');
+assert(idsQueryOrderId.some(i => i.value === '5005'), 'query ?orderId=5005 extracts the ID');
+
+const idsQueryPage = extractResourceIds('/api/search?page=2&sort=newest');
+assert(!idsQueryPage.some(i => i.value === '2'), 'query ?page=2 is NOT a resource ID');
+
+const idsQueryMixed = extractResourceIds('/api/items?id=42&page=3&limit=20');
+assert(idsQueryMixed.some(i => i.value === '42'), '?id=42 is extracted');
+assert(!idsQueryMixed.some(i => i.value === '3'), '?page=3 is not extracted');
+assert(!idsQueryMixed.some(i => i.value === '20'), '?limit=20 is not extracted');
+
 // Fingerprint
 const fp1 = fingerprintToken('secret');
 const fp2 = fingerprintToken('secret');
@@ -1447,8 +1500,23 @@ function makeFakeApp(port) {
   };
 
   function getUser(req) {
-    const auth = (req.headers['authorization'] || '').replace(/^bearer\s+/i, '').trim();
-    return TOKENS[auth] ? { id: TOKENS[auth] } : null;
+    const auth   = (req.headers['authorization'] || '').trim();
+    const cookie = (req.headers['cookie'] || '');
+    const apiKey = (req.headers['x-api-key'] || '').trim();
+
+    // Check all auth sources — Bearer, Token scheme, scheme-less, cookie, API key
+    const candidates = [];
+    if (/^bearer\s+/i.test(auth))  candidates.push(auth.replace(/^bearer\s+/i, '').trim());
+    if (/^token\s+/i.test(auth))   candidates.push(auth.replace(/^token\s+/i, '').trim());
+    if (auth && !auth.includes(' ')) candidates.push(auth); // scheme-less
+    const sessionMatch = /(?:^|;\s*)session=([^;]+)/.exec(cookie);
+    if (sessionMatch) candidates.push(sessionMatch[1]);
+    if (apiKey) candidates.push(apiKey);
+
+    for (const c of candidates) {
+      if (TOKENS[c]) return { id: TOKENS[c] };
+    }
+    return null;
   }
 
   function send(res, status, data) {
@@ -1503,6 +1571,60 @@ function makeFakeApp(port) {
     }
 
     if (p === '/api/profile') return send(res, 200, { id: user.id });
+
+    // ── Auth-mechanism coverage endpoints ─────────────────────────────
+    // Each returns the same BOLA-vulnerable data via a different auth mechanism.
+
+    // Cookie auth — same IDOR bug
+    const cookieM = p.match(/^\/api\/cookie-orders\/(\d+)$/);
+    if (cookieM) {
+      const order = ORDERS[cookieM[1]];
+      if (!order) return send(res, 404, { error: 'not found' });
+      return send(res, 200, order);
+    }
+
+    // API key auth — same IDOR bug
+    const keyM = p.match(/^\/api\/key-orders\/(\d+)$/);
+    if (keyM) {
+      const order = ORDERS[keyM[1]];
+      if (!order) return send(res, 404, { error: 'not found' });
+      return send(res, 200, order);
+    }
+
+    // Token scheme auth — same IDOR bug
+    const tokenM = p.match(/^\/api\/token-orders\/(\d+)$/);
+    if (tokenM) {
+      const order = ORDERS[tokenM[1]];
+      if (!order) return send(res, 404, { error: 'not found' });
+      return send(res, 200, order);
+    }
+
+    // Scheme-less auth — same IDOR bug
+    const rawM = p.match(/^\/api\/raw-orders\/(\d+)$/);
+    if (rawM) {
+      const order = ORDERS[rawM[1]];
+      if (!order) return send(res, 404, { error: 'not found' });
+      return send(res, 200, order);
+    }
+
+    // Query-string resource ID — same IDOR bug, resource ID in ?id=
+    if (p === '/api/query-order') {
+      const qid = new URL(req.url, 'http://localhost').searchParams.get('id');
+      const order = qid ? ORDERS[qid] : null;
+      if (!order) return send(res, 404, { error: 'not found' });
+      return send(res, 200, order);
+    }
+
+    // 200-with-error-body — different response for user-b.
+    // Should NOT produce a finding (different hashes).
+    const errM = p.match(/^\/api\/error-200\/(\d+)$/);
+    if (errM) {
+      const order = ORDERS[errM[1]];
+      if (!order) return send(res, 404, { error: 'not found' });
+      if (user.id === 'user-a') return send(res, 200, order);
+      return send(res, 200, { error: 'forbidden', code: 'AUTHZ_DENIED' });
+    }
+
     send(res, 404, { error: 'not found' });
   });
 
@@ -1541,6 +1663,25 @@ async function runIntegration() {
     });
   }
 
+  // Like req(), but with explicit headers for testing non-Bearer auth mechanisms.
+  function reqWith(path, headers) {
+    return new Promise((resolve, reject) => {
+      const r = http.request({
+        hostname: '127.0.0.1', port: 8899, path, method: 'GET',
+        headers: headers || {},
+      }, res => {
+        const chunks = [];
+        res.on('data', c => chunks.push(c));
+        res.on('end', () => {
+          try { resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString()) }); }
+          catch { resolve({ status: res.statusCode, body: {} }); }
+        });
+      });
+      r.on('error', reject);
+      r.end();
+    });
+  }
+
   // Proxy forwards correctly
   const health = await req('/api/health');
   assert(health.status === 200, 'health check passes through');
@@ -1561,6 +1702,25 @@ async function runIntegration() {
 
   const doc = await req('/api/docs/55', 'tok-a');
   assert(doc.status === 200, 'cross-family endpoint responds to user A');
+
+  // Auth-mechanism coverage — same BOLA via different auth types
+  const cookieOrder = await reqWith('/api/cookie-orders/1001', { cookie: 'session=tok-a' });
+  assert(cookieOrder.status === 200, 'cookie-auth endpoint responds');
+
+  const keyOrder = await reqWith('/api/key-orders/1001', { 'x-api-key': 'tok-a' });
+  assert(keyOrder.status === 200, 'API-key-auth endpoint responds');
+
+  const tokenOrder = await reqWith('/api/token-orders/1001', { authorization: 'Token tok-a' });
+  assert(tokenOrder.status === 200, 'Token-scheme endpoint responds');
+
+  const rawOrder = await reqWith('/api/raw-orders/1001', { authorization: 'tok-a' });
+  assert(rawOrder.status === 200, 'scheme-less-auth endpoint responds');
+
+  const queryOrder = await req('/api/query-order?id=1001', 'tok-a');
+  assert(queryOrder.status === 200, 'query-string resource ID endpoint responds');
+
+  const error200 = await req('/api/error-200/1001', 'tok-a');
+  assert(error200.status === 200, '200-with-error-body endpoint responds to user A');
 
   // Session store
   assert(iStore.size() >= 1, 'store recorded authenticated requests');
@@ -1730,6 +1890,46 @@ async function runIntegration() {
   // Cross-family confirmed BOLA with text/plain → no exposureSummary (correct: non-JSON)
   assert(!docFinding.exposureSummary,
     'GATE: non-JSON confirmed BOLA has NO exposureSummary');
+
+  // ── Auth-mechanism coverage ───────────────────────────────────────────────
+  section('integration — auth mechanism coverage');
+
+  // Cookie auth → confirmed BOLA
+  const cookieFinding = findings.find(f => f.path && f.path.includes('/api/cookie-orders/1001'));
+  assert(!!cookieFinding, 'cookie-auth replay produces a finding');
+  assert(cookieFinding.type === 'broken-access-control', 'cookie-auth finding is BOLA');
+  assert(cookieFinding.confidence === 'confirmed', 'cookie-auth finding is confirmed');
+  assert(cookieFinding.tokenType === 'cookie', 'cookie-auth finding records cookie tokenType');
+
+  // API key auth → confirmed BOLA
+  const keyFinding = findings.find(f => f.path && f.path.includes('/api/key-orders/1001'));
+  assert(!!keyFinding, 'API-key-auth replay produces a finding');
+  assert(keyFinding.type === 'broken-access-control', 'API-key finding is BOLA');
+  assert(keyFinding.confidence === 'confirmed', 'API-key finding is confirmed');
+  assert(keyFinding.tokenType === 'api-key', 'API-key finding records api-key tokenType');
+
+  // Token scheme auth → confirmed BOLA
+  const tokenFinding = findings.find(f => f.path && f.path.includes('/api/token-orders/1001'));
+  assert(!!tokenFinding, 'Token-scheme replay produces a finding');
+  assert(tokenFinding.type === 'broken-access-control', 'Token-scheme finding is BOLA');
+  assert(tokenFinding.confidence === 'confirmed', 'Token-scheme finding is confirmed');
+
+  // Scheme-less auth → confirmed BOLA
+  const schemelessFinding = findings.find(f => f.path && f.path.includes('/api/raw-orders/1001'));
+  assert(!!schemelessFinding, 'scheme-less-auth replay produces a finding');
+  assert(schemelessFinding.type === 'broken-access-control', 'scheme-less finding is BOLA');
+  assert(schemelessFinding.confidence === 'confirmed', 'scheme-less finding is confirmed');
+
+  // Query-string resource ID → confirmed BOLA
+  const queryFinding = findings.find(f => f.path && f.path.includes('/api/query-order'));
+  assert(!!queryFinding, 'query-string resource ID replay produces a finding');
+  assert(queryFinding.type === 'broken-access-control', 'query-string finding is BOLA');
+  assert(queryFinding.confidence === 'confirmed', 'query-string finding is confirmed');
+  assert(queryFinding.request.queryPresent === true, 'query string preserved in finding metadata');
+
+  // 200-with-error-body → no finding (different hashes)
+  const error200Finding = findings.find(f => f.path && f.path.includes('/api/error-200/1001'));
+  assert(!error200Finding, '200-with-error-body is NOT a false positive');
 
   // ── Backward compatibility ────────────────────────────────────────────────
   section('integration — backward compatibility');

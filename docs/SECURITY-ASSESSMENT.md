@@ -1,6 +1,6 @@
 # accguard v0.10.0 — Adversarial Security Assessment
 
-**Build:** v0.10.0 — 536 built-in tests passing
+**Build:** v0.10.0 — 657 built-in tests passing
 **Assessment:** Twelve adversarial rounds (v0.9.2) plus Exposure Summary verification (v0.10.0). 85+ attack vectors. 13 harnesses. Zero open findings.
 
 ---
@@ -97,4 +97,5 @@ Proxy survived randomized stress testing (40 fuzz requests: random paths, 10KB U
 | 0.10.0 | matchType / evidenceHash could diverge on undefined-hash edge | Both now derive from a single pair of booleans; invariant `summaryGeneratedFromHash === evidence.matchedHash` holds by construction |
 | 0.10.0 | Sanitization collision hid that multiple dynamic keys existed | Added honest `sanitizedFieldPaths` / `sanitizedKeyTypes` / `sanitizedKeySegments` disclosure. |
 | 0.10.0 | Reporter claimed "JSON normalisation" for raw-prefixed (big-int) hashes | `whyFlagged()` now branches on the actual hash prefix; wording matches the proof artifact |
-| 0.10.0 | Sensitive data in URLs not addressed | Documented as a conscious reproducibility tradeoff; tests lock the behavior so a future silent change is caught. 536 tests passing. |
+| 0.10.0 | Sensitive data in URLs not addressed | Documented as a conscious reproducibility tradeoff; tests lock the behavior so a future silent change is caught. |
+| 0.10.0 | False positives from over-eager resource-ID extraction | `extractResourceIds` rewritten: skips API version segments (`v1`/`v2`/`v10`), rejects hyphenated route names directly under `/api`, extracts query-string IDs only from id-like keys. 657 tests passing. |

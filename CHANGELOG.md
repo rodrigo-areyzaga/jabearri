@@ -57,12 +57,21 @@ clearer, safer, and harder to misread. Detection behavior is unchanged.
 - `SECURITY.md` documents the Exposure Summary privacy model and adds an explicit
   note that request paths, `resourceIds`, and `curl` are preserved verbatim for
   reproducibility and are **not** sanitized.
-- Test suite expanded from 209 to 536 passing tests.
+- Test suite expanded from 209 to 657 passing tests, including integration
+  coverage for Cookie, API key, Token-scheme, and scheme-less authentication
+  mechanisms alongside the existing Bearer tests.
 
 ### Fixed
 
 - Depth-cap off-by-one: with `MAX_DEPTH = 12`, traversal stored paths 13 segments
   deep. The deepest stored path is now exactly 12 segments.
+- **Resource-ID candidate filter** (`extractResourceIds`): version-only path
+  segments (`v1`, `v2`, `v10`) were extracted as integer resource IDs, and
+  hyphenated route names (`order-history`) were treated as slug resource IDs.
+  Both caused false positive findings on shared global endpoints. The function
+  now skips API version markers, treats slugs as resource IDs only when they
+  embed a digit or appear under a collection parent, and extracts query-string
+  IDs only from id-like parameter keys (`id`, `orderId`, `userId`, etc.).
 
 ### Security
 

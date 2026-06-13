@@ -7,10 +7,6 @@ const fs     = require('fs');
 // Prevents unbounded memory growth in large test suites.
 const MAX_ENTRIES = parseInt(process.env.ACCGUARD_MAX_ENTRIES || "10000", 10);
 
-const ID_PATTERNS = [
-  { type: 'uuid',    re: /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi },
-  { type: 'integer', re: /(?<![.\d])(\d{1,20})(?![.\d])/g },
-];
 
 function fingerprintToken(raw) {
   return crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16);
@@ -142,26 +138,67 @@ function extractToken(headers) {
 
 // Extracts resource IDs from a URL path.
 // Handles integers, UUIDs, and slug-style IDs (ord-1001, user-alice, pay-1).
+// Extracts resource IDs from a URL path/query.
+// Candidate filtering matters: accguard should replay protected resources, not
+// every authenticated endpoint that happens to contain a number or hyphenated
+// route name. This skips API version markers (v1/v2/v10) and treats query values
+// as resource IDs only when the query key is id-like.
 function extractResourceIds(urlPath) {
   const ids = [];
+  const parsed = new URL(urlPath, 'http://localhost');
 
-  for (const { type, re } of ID_PATTERNS) {
-    let m;
-    re.lastIndex = 0;
-    while ((m = re.exec(urlPath)) !== null) {
-      ids.push({ type, value: m[0] });
+  function add(type, value) {
+    if (!ids.some(x => x.value === value)) ids.push({ type, value });
+  }
+
+  function isVersionSegment(seg) {
+    return /^v\d+(?:[._-]?\d+)?(?:alpha|beta|rc)?$/i.test(seg);
+  }
+
+  const segments = parsed.pathname.split('/').filter(Boolean).map(seg => {
+    try { return decodeURIComponent(seg); } catch { return seg; }
+  });
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const prev = segments[i - 1] || '';
+
+    // /api/v2/status => v2 is a version marker, not a resource ID.
+    if (isVersionSegment(seg)) continue;
+
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) {
+      add('uuid', seg);
+      continue;
+    }
+
+    if (/^\d{1,20}$/.test(seg)) {
+      add('integer', seg);
+      continue;
+    }
+
+    // Slug IDs are common, but hyphenated route names are common too:
+    // /api/order-history should not become replayable just because it has a dash.
+    // Treat a slug as a resource ID when it either embeds a digit (ord-1001) or
+    // appears under a collection segment (/api/users/user-alice). A first-level
+    // API route name under /api is skipped unless another ID is present elsewhere.
+    const looksSlug = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/i.test(seg);
+    const underCollection = prev && prev.toLowerCase() !== 'api' && !isVersionSegment(prev);
+    if (looksSlug && (/\d/.test(seg) || underCollection)) {
+      add('slug', seg);
     }
   }
 
-  // Slug IDs: letters+digits separated by hyphens
-  const segments = urlPath.split('/').filter(Boolean);
-  for (const seg of segments) {
-    if (/^[a-z][a-z0-9]*(-[a-z0-9]+)+$/.test(seg)) {
-      ids.push({ type: 'slug', value: seg });
-    }
+  // Query-string resource IDs — only for id-like parameter names.
+  // ?id=1001 is a resource ID; ?page=2 or ?sort=newest are not.
+  const ID_QUERY_KEYS = /^(id|uuid|_id|user[-_]?id|account[-_]?id|order[-_]?id|transaction[-_]?id|vehicle[-_]?id|customer[-_]?id|payment[-_]?id|document[-_]?id|record[-_]?id)$/i;
+  for (const [key, value] of parsed.searchParams.entries()) {
+    if (!ID_QUERY_KEYS.test(key)) continue;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) add('uuid', value);
+    else if (/^\d{1,20}$/.test(value)) add('integer', value);
+    else if (/^[a-z][a-z0-9]*(-[a-z0-9]+)+$/i.test(value)) add('slug', value);
   }
 
-  return ids.filter((id, i, arr) => arr.findIndex(x => x.value === id.value) === i);
+  return ids;
 }
 
 class SessionStore {

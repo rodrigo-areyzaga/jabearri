@@ -1,6 +1,6 @@
 {
   "version": "0.10.0",
-  "generatedAt": "2026-06-11T12:21:36.866Z",
+  "generatedAt": "2026-06-13T13:40:38.410Z",
   "reportType": "authorization-regression-evidence",
   "privacy": {
     "rawTokensStored": false,
@@ -25,7 +25,7 @@
   },
   "findings": [
     {
-      "findingId": "AG-20260611T122136Z-001",
+      "findingId": "AG-20260613T134038Z-001",
       "severity": "high",
       "type": "broken-access-control",
       "confidence": "confirmed",
@@ -58,8 +58,8 @@
         "authMechanism": "bearer",
         "userAgentPreserved": false
       },
-      "recordedAt": 1781180496839,
-      "replayedAt": "2026-06-11T12:21:36.857Z",
+      "recordedAt": 1781358038386,
+      "replayedAt": "2026-06-13T13:40:38.404Z",
       "curl": "curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://127.0.0.1:3100/api/users/user-alice'",
       "exposureSummary": {
         "summaryGeneratedFromHash": "json:54a38c2940e8b1ef24d0280b56e171e491c21e3c0cee8087758f148b975f311d",
@@ -101,17 +101,13 @@
       }
     },
     {
-      "findingId": "AG-20260611T122136Z-002",
+      "findingId": "AG-20260613T134038Z-002",
       "severity": "high",
       "type": "broken-access-control",
       "confidence": "confirmed",
       "method": "GET",
       "path": "/api/orders/ord-1001",
       "resourceIds": [
-        {
-          "type": "integer",
-          "value": "1001"
-        },
         {
           "type": "slug",
           "value": "ord-1001"
@@ -138,8 +134,8 @@
         "authMechanism": "bearer",
         "userAgentPreserved": false
       },
-      "recordedAt": 1781180496843,
-      "replayedAt": "2026-06-11T12:21:36.859Z",
+      "recordedAt": 1781358038390,
+      "replayedAt": "2026-06-13T13:40:38.405Z",
       "curl": "curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://127.0.0.1:3100/api/orders/ord-1001'",
       "exposureSummary": {
         "summaryGeneratedFromHash": "json:2c913a034728f094ab7f6633d7037d266f8baf3caa8b06f7c1e1b13b067f85af",
@@ -176,17 +172,13 @@
       }
     },
     {
-      "findingId": "AG-20260611T122136Z-003",
+      "findingId": "AG-20260613T134038Z-003",
       "severity": "high",
       "type": "broken-access-control",
       "confidence": "confirmed",
       "method": "GET",
       "path": "/api/orders/ord-1002",
       "resourceIds": [
-        {
-          "type": "integer",
-          "value": "1002"
-        },
         {
           "type": "slug",
           "value": "ord-1002"
@@ -213,8 +205,8 @@
         "authMechanism": "bearer",
         "userAgentPreserved": false
       },
-      "recordedAt": 1781180496845,
-      "replayedAt": "2026-06-11T12:21:36.861Z",
+      "recordedAt": 1781358038392,
+      "replayedAt": "2026-06-13T13:40:38.407Z",
       "curl": "curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://127.0.0.1:3100/api/orders/ord-1002'",
       "exposureSummary": {
         "summaryGeneratedFromHash": "json:9895cec2aead9eac9b7d5d96ef9457d5eeca5c379733775e7bbd191c30754142",
@@ -251,17 +243,13 @@
       }
     },
     {
-      "findingId": "AG-20260611T122136Z-004",
+      "findingId": "AG-20260613T134038Z-004",
       "severity": "high",
       "type": "broken-access-control",
       "confidence": "confirmed",
       "method": "GET",
       "path": "/api/payment/pay-1",
       "resourceIds": [
-        {
-          "type": "integer",
-          "value": "1"
-        },
         {
           "type": "slug",
           "value": "pay-1"
@@ -288,8 +276,8 @@
         "authMechanism": "bearer",
         "userAgentPreserved": false
       },
-      "recordedAt": 1781180496847,
-      "replayedAt": "2026-06-11T12:21:36.863Z",
+      "recordedAt": 1781358038395,
+      "replayedAt": "2026-06-13T13:40:38.408Z",
       "curl": "curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://127.0.0.1:3100/api/payment/pay-1'",
       "exposureSummary": {
         "summaryGeneratedFromHash": "json:02c1b9ca8f76fd38cd4a90dab50f4c48075682214dcfdd63aff04737d9220728",
@@ -320,17 +308,13 @@
       }
     },
     {
-      "findingId": "AG-20260611T122136Z-005",
+      "findingId": "AG-20260613T134038Z-005",
       "severity": "high",
       "type": "broken-access-control",
       "confidence": "confirmed",
       "method": "GET",
       "path": "/api/documents/doc-101",
       "resourceIds": [
-        {
-          "type": "integer",
-          "value": "101"
-        },
         {
           "type": "slug",
           "value": "doc-101"
@@ -357,8 +341,8 @@
         "authMechanism": "bearer",
         "userAgentPreserved": false
       },
-      "recordedAt": 1781180496851,
-      "replayedAt": "2026-06-11T12:21:36.864Z",
+      "recordedAt": 1781358038397,
+      "replayedAt": "2026-06-13T13:40:38.409Z",
       "curl": "curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://127.0.0.1:3100/api/documents/doc-101'",
       "exposureSummary": {
         "summaryGeneratedFromHash": "json:9c0d301257b47270ed08cb5ddfc93da43b99c268c45253c8601c3d663f75ca2a",
