@@ -174,7 +174,7 @@ That's not silence — it's verification. You know the tool exercised real authe
 
 **Mobile app backends** — The access control lives in the API, not the device. Point your API-level test suite through accguard and it catches authorization regressions in your iOS or Android backend the same way it would for a web app.
 
-**Any test runner** — Cypress, Playwright, Jest, pytest, RSpec, curl scripts. One environment variable: `HTTP_PROXY=http://127.0.0.1:8877`.
+**Any test runner** can be used as a traffic source — Cypress, Playwright, Jest, pytest, RSpec, curl scripts — as long as its HTTP traffic is routed through the accguard proxy. Some runners require explicit proxy configuration (see troubleshooting below).
 
 ---
 
@@ -202,6 +202,32 @@ Create `accguard.config.json` in your project root:
 
 ## Running with your tests
 
+### Option A — wrapper mode (recommended)
+
+accguard can wrap your test command directly. It starts the proxy, runs your tests with `HTTP_PROXY` injected automatically, then replays when the tests finish. No manual coordination required.
+
+```bash
+ACCGUARD_TOKEN_B="second-user-token" node src/cli.js run -- npm test
+```
+
+With Cypress:
+
+```bash
+ACCGUARD_TOKEN_B="second-user-token" node src/cli.js run -- npx cypress run
+```
+
+With pytest:
+
+```bash
+ACCGUARD_TOKEN_B="second-user-token" node src/cli.js run -- pytest tests/
+```
+
+The syntax is `accguard run -- <your test command>`. accguard exits when your tests finish and outputs findings immediately after.
+
+> **Note:** `ACCGUARD_TOKEN_B` is not passed to your test command — it is only used internally by accguard for replay. Your test code never sees Bob's token.
+
+### Option B — manual mode (two terminals)
+
 ```bash
 # Terminal 1 — start accguard
 ACCGUARD_TOKEN_B="second-user-token" node src/cli.js
@@ -215,6 +241,22 @@ HTTP_PROXY=http://127.0.0.1:8877 npm test
 ---
 
 ## CI integration
+
+### CI with wrapper (one step)
+
+```yaml
+- name: Start app
+  run: npm start &
+
+- name: Run tests with accguard
+  run: node src/cli.js run -- npm test
+  env:
+    ACCGUARD_TOKEN_B: ${{ secrets.TEST_USER_B_TOKEN }}
+```
+
+accguard starts the proxy, runs `npm test` with `HTTP_PROXY` injected, replays when tests finish, and exits. One step, no coordination.
+
+### CI with manual flush (multi-step)
 
 ```yaml
 - name: Start app

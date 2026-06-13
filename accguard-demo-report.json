@@ -1,6 +1,6 @@
 {
-  "version": "0.10.0",
-  "generatedAt": "2026-06-13T13:40:38.410Z",
+  "version": "0.10.1",
+  "generatedAt": "2026-06-13T19:25:16.548Z",
   "reportType": "authorization-regression-evidence",
   "privacy": {
     "rawTokensStored": false,
@@ -9,7 +9,7 @@
   },
   "integrity": {
     "reportSchema": "accguard-report-v1",
-    "generatedBy": "accguard 0.10.0",
+    "generatedBy": "accguard 0.10.1",
     "detectionPrimitive": "cross-user replay hash match",
     "bodyRetentionPolicy": "not-stored",
     "tokenRetentionPolicy": "fingerprint-only"
@@ -25,7 +25,7 @@
   },
   "findings": [
     {
-      "findingId": "AG-20260613T134038Z-001",
+      "findingId": "AG-20260613T192516Z-001",
       "severity": "high",
       "type": "broken-access-control",
       "confidence": "confirmed",
@@ -58,8 +58,8 @@
         "authMechanism": "bearer",
         "userAgentPreserved": false
       },
-      "recordedAt": 1781358038386,
-      "replayedAt": "2026-06-13T13:40:38.404Z",
+      "recordedAt": 1781378716502,
+      "replayedAt": "2026-06-13T19:25:16.531Z",
       "curl": "curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://127.0.0.1:3100/api/users/user-alice'",
       "exposureSummary": {
         "summaryGeneratedFromHash": "json:54a38c2940e8b1ef24d0280b56e171e491c21e3c0cee8087758f148b975f311d",
@@ -101,7 +101,7 @@
       }
     },
     {
-      "findingId": "AG-20260613T134038Z-002",
+      "findingId": "AG-20260613T192516Z-002",
       "severity": "high",
       "type": "broken-access-control",
       "confidence": "confirmed",
@@ -134,8 +134,8 @@
         "authMechanism": "bearer",
         "userAgentPreserved": false
       },
-      "recordedAt": 1781358038390,
-      "replayedAt": "2026-06-13T13:40:38.405Z",
+      "recordedAt": 1781378716508,
+      "replayedAt": "2026-06-13T19:25:16.533Z",
       "curl": "curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://127.0.0.1:3100/api/orders/ord-1001'",
       "exposureSummary": {
         "summaryGeneratedFromHash": "json:2c913a034728f094ab7f6633d7037d266f8baf3caa8b06f7c1e1b13b067f85af",
@@ -172,7 +172,7 @@
       }
     },
     {
-      "findingId": "AG-20260613T134038Z-003",
+      "findingId": "AG-20260613T192516Z-003",
       "severity": "high",
       "type": "broken-access-control",
       "confidence": "confirmed",
@@ -205,8 +205,8 @@
         "authMechanism": "bearer",
         "userAgentPreserved": false
       },
-      "recordedAt": 1781358038392,
-      "replayedAt": "2026-06-13T13:40:38.407Z",
+      "recordedAt": 1781378716511,
+      "replayedAt": "2026-06-13T19:25:16.537Z",
       "curl": "curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://127.0.0.1:3100/api/orders/ord-1002'",
       "exposureSummary": {
         "summaryGeneratedFromHash": "json:9895cec2aead9eac9b7d5d96ef9457d5eeca5c379733775e7bbd191c30754142",
@@ -243,7 +243,7 @@
       }
     },
     {
-      "findingId": "AG-20260613T134038Z-004",
+      "findingId": "AG-20260613T192516Z-004",
       "severity": "high",
       "type": "broken-access-control",
       "confidence": "confirmed",
@@ -276,8 +276,8 @@
         "authMechanism": "bearer",
         "userAgentPreserved": false
       },
-      "recordedAt": 1781358038395,
-      "replayedAt": "2026-06-13T13:40:38.408Z",
+      "recordedAt": 1781378716518,
+      "replayedAt": "2026-06-13T19:25:16.539Z",
       "curl": "curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://127.0.0.1:3100/api/payment/pay-1'",
       "exposureSummary": {
         "summaryGeneratedFromHash": "json:02c1b9ca8f76fd38cd4a90dab50f4c48075682214dcfdd63aff04737d9220728",
@@ -308,7 +308,7 @@
       }
     },
     {
-      "findingId": "AG-20260613T134038Z-005",
+      "findingId": "AG-20260613T192516Z-005",
       "severity": "high",
       "type": "broken-access-control",
       "confidence": "confirmed",
@@ -341,8 +341,8 @@
         "authMechanism": "bearer",
         "userAgentPreserved": false
       },
-      "recordedAt": 1781358038397,
-      "replayedAt": "2026-06-13T13:40:38.409Z",
+      "recordedAt": 1781378716522,
+      "replayedAt": "2026-06-13T19:25:16.546Z",
       "curl": "curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://127.0.0.1:3100/api/documents/doc-101'",
       "exposureSummary": {
         "summaryGeneratedFromHash": "json:9c0d301257b47270ed08cb5ddfc93da43b99c268c45253c8601c3d663f75ca2a",
