@@ -1,9 +1,65 @@
 # Changelog
 
-All notable changes to mozorrarri are documented here.
+All notable changes to jabearri are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased] — Security fix: encoded scope traversal at all depths
+
+### Fixed
+
+- **Encoded scope traversal could widen the scope boundary through multiple
+  distinct gaps, all now closed.**
+
+  The original check decoded scope entries a fixed 2 passes before looking for
+  `..`. Three gaps existed:
+
+  1. **Triple-and-deeper encoding** (`%25252e%25252e`, mixed-depth variants):
+     survived 2 decode passes as a residual `%2e%2e` — no literal `..` — but
+     the WHATWG URL spec's dot-segment removal collapses `%2e`/`%2E` natively,
+     so `normalizePath()` still widened scope at request time. Fixed by
+     replacing the fixed 2-pass decode with `decodeUntilStable()`, which loops
+     until the string stops changing (capped at `DECODE_MAX_PASSES` passes for
+     DoS safety).
+
+  2. **Cap-boundary residual** (encoding depth exactly `DECODE_MAX_PASSES`):
+     `decodeUntilStable()` hit its cap and returned `/%2e%2e/` — still no
+     literal `..`, still collapsed to `/` by `new URL().pathname`. Fixed by
+     `foldEncodedDots()`, which converts residual `%2e`/`%2E` to `.` after the
+     decode loop — mirroring what the URL spec does without an explicit decode
+     step — before the `..` check runs.
+
+  Both `verifyScope()` (pre-flight validation) and `normalizePath()` (runtime
+  scope matching in `ProxyCore`) now apply the same two-step pipeline:
+  `foldEncodedDots(decodeUntilStable(input))`. The two functions are provably
+  consistent at every encoding depth, including cap-boundary residuals. Deeper
+  residuals (`%252e` and beyond) are not folded — the URL spec does not
+  collapse them without an explicit decode pass — and verified not to widen
+  scope via URL normalization.
+
+- **875 total tests** (720 in `test/run.js` + 81 in `test/adversarial-harness.js`
+  + 74 in `test/deep-adversarial-harness.js`), including regression tests for
+  triple/mixed-depth encoding, the exact cap-boundary bypass case, and a
+  decode-cap DoS-safety timing check.
+
+## [Unreleased] — Renamed to jabearri
+
+**BREAKING CHANGE:** This project was renamed from `mozorrarri` to `jabearri` as part of the Haritzarri tool family consolidation. All environment variables, config file names, and the consent file have been renamed accordingly:
+
+- `MOZORRARRI_CONFIG` → `JABEARRI_CONFIG`
+- `MOZORRARRI_TOKEN_B` → `JABEARRI_TOKEN_B`
+- `MOZORRARRI_PROXY_URL` → `JABEARRI_PROXY_URL`
+- `MOZORRARRI_MAX_ENTRIES` → `JABEARRI_MAX_ENTRIES`
+- `MOZORRARRI_API_KEY_HEADER` → `JABEARRI_API_KEY_HEADER`
+- `MOZORRARRI_COOKIE_NAME` → `JABEARRI_COOKIE_NAME`
+- `MOZORRARRI_TEST_TARGET` → `JABEARRI_TEST_TARGET`
+- `mozorrarri.config.json` → `jabearri.config.json`
+- `.mozorrarri_consent` → `.jabearri_consent`
+
+If you have CI pipelines or scripts referencing the old names, update them before upgrading. The GitHub repository was renamed from `mozorrarri` to `jabearri`; the old URL redirects automatically.
+
+Functionality is unchanged. This is a naming-only release.
 
 ## [Unreleased] — Renamed to mozorrarri
 
@@ -27,20 +83,20 @@ Functionality is unchanged. This is a naming-only release.
 
 ### Added
 
-- **`mozorrarri run -- <command>` wrapper mode.** mozorrarri can now wrap your test
+- **`jabearri run -- <command>` wrapper mode.** jabearri can now wrap your test
   command directly — starts the proxy, injects `HTTP_PROXY` into the child
   process environment, waits for the command to exit, then replays automatically.
-  No manual coordination or second terminal required. `MOZORRARRI_TOKEN_B` is
+  No manual coordination or second terminal required. `JABEARRI_TOKEN_B` is
   explicitly removed from the child environment so Bob's token is never exposed
   to test code, browser drivers, or CI logs.
 - **Exit-code disambiguation message.** When the wrapped command exits non-zero
-  AND mozorrarri finds confirmed findings, the terminal prints a clear note
+  AND jabearri finds confirmed findings, the terminal prints a clear note
   distinguishing both failure causes and the report path.
 - **MongoDB ObjectID extraction.** 24-character hex strings containing at least
   one letter (`a–f`) are now recognized as `objectid` resource IDs. Previously
   these fell through `extractResourceIds` entirely, causing MongoDB-backed API
   endpoints (crAPI vehicles, etc.) to be silently skipped from replay.
-- **672 automated tests.**
+- **708 automated tests.**
 
 ### Fixed
 
@@ -52,7 +108,7 @@ Functionality is unchanged. This is a naming-only release.
 
 ### Validation
 
-- Validated `mozorrarri run -- <command>` against OWASP Juice Shop.
+- Validated `jabearri run -- <command>` against OWASP Juice Shop.
 - Confirmed deterministic cross-user replay findings on `/rest/basket/:id`
   endpoints with reproducible evidence.
 - Documented boundary: session-scoped endpoints without URL-level resource IDs
@@ -62,12 +118,12 @@ Functionality is unchanged. This is a naming-only release.
   replayed as BOLA candidates. Zero findings on a clean run — correct behavior,
   honestly reported.
 
-[0.10.1]: https://github.com/rodrigo-areyzaga/mozorrarri/releases/tag/v0.10.1
+[0.10.1]: https://github.com/rodrigo-areyzaga/jabearri/releases/tag/v0.10.1
 
 ## [0.10.0] — 2026-06-11
 
 v0.10.0 adds a privacy-preserving **Exposure Summary** and audit-ready evidence
-metadata for confirmed authorization findings. mozorrarri still does one thing —
+metadata for confirmed authorization findings. jabearri still does one thing —
 prove cross-user authorization regressions. This release makes the proof
 clearer, safer, and harder to misread. Detection behavior is unchanged.
 
@@ -146,5 +202,5 @@ clearer, safer, and harder to misread. Detection behavior is unchanged.
 - Live proxy capture, second-user replay, SHA-256 hash comparison.
 - Twelve rounds of adversarial assessment; 85+ attack vectors; zero open findings.
 
-[0.10.0]: https://github.com/rodrigo-areyzaga/mozorrarri/releases/tag/v0.10.0
-[0.9.2]: https://github.com/rodrigo-areyzaga/mozorrarri/releases/tag/v0.9.2
+[0.10.0]: https://github.com/rodrigo-areyzaga/jabearri/releases/tag/v0.10.0
+[0.9.2]: https://github.com/rodrigo-areyzaga/jabearri/releases/tag/v0.9.2

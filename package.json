@@ -1,10 +1,10 @@
 {
-  "name": "mozorrarri",
+  "name": "jabearri",
   "version": "0.10.1",
   "description": "Authorization regression testing from real authenticated traffic",
   "main": "src/cli.js",
   "bin": {
-    "mozorrarri": "src/cli.js"
+    "jabearri": "src/cli.js"
   },
   "scripts": {
     "start": "node src/cli.js",

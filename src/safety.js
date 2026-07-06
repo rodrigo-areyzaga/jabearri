@@ -2,6 +2,57 @@
 
 const dns = require('dns').promises;
 
+// Percent-decode a string until it stops changing (fully unwraps any depth of
+// nested encoding — %2e, %252e, %25252e, ... all converge to the same value),
+// or until a hard cap of passes is hit, whichever comes first.
+//
+// DECODE_MAX_PASSES caps the loop to bound worst-case CPU cost (decode-bomb
+// style DoS protection). After the cap, the result may still contain residual
+// percent-escaped sequences that were never fully unwrapped. Callers that need
+// to detect path traversal MUST call foldEncodedDots() on the result before
+// checking for '..', because the WHATWG URL spec's own dot-segment removal
+// algorithm natively recognizes %2e/%2E as encoded dots without an explicit
+// decodeURIComponent step. A scope entry that exits the cap as '/%2e%2e/'
+// still normalizes to '/' inside new URL(...).pathname, widening the scope
+// boundary even though the raw string contains no literal '..'.
+const DECODE_MAX_PASSES = 10;
+
+function decodeUntilStable(input, maxPasses = DECODE_MAX_PASSES) {
+  let decoded = input;
+  for (let i = 0; i < maxPasses; i++) {
+    let next;
+    try {
+      next = decodeURIComponent(decoded);
+    } catch {
+      break; // malformed escape — stop, use what we have
+    }
+    if (next === decoded) break; // fixed point reached
+    decoded = next;
+  }
+  return decoded;
+}
+
+// Fold any percent-encoded dot sequences that survive the decode cap into
+// their literal equivalents before checking for '..'.
+//
+// The WHATWG URL spec (section 5.1, "URL path segment") treats %2e/%2E as dot
+// equivalents during path normalization, even if decodeURIComponent was never
+// called on them. At the decode-cap boundary, decodeUntilStable() may return
+// a string like '/%2e%2e/' that contains no literal '..' but is still collapsed
+// to '/' by 'new URL(...).pathname'. Without this step, a scope entry encoded
+// exactly DECODE_MAX_PASSES + 1 layers deep would pass the literal '..' check
+// and then be silently widened at request time by normalizePath() in proxy.js.
+//
+// Only %2e/%2E are folded here — these are the only percent-encodings the URL
+// spec treats as dot-segment equivalents. Deeper residual escapes like %252e
+// are not folded (the URL spec does not collapse them without an explicit
+// decode step), but they also cannot widen scope because normalizePath() uses
+// the same decodeUntilStable+foldEncodedDots pipeline and would produce the
+// same non-traversal result for any given input.
+function foldEncodedDots(s) {
+  return s.replace(/%2e/gi, '.');
+}
+
 // Private and loopback ranges in dotted-decimal form.
 // All IP inputs are normalized to dotted-decimal before matching
 // so that non-standard representations (decimal, hex, octal) are caught.
@@ -109,11 +160,17 @@ async function verifyTarget(targetUrl) {
     throw new Error(`Invalid target URL: ${targetUrl}`);
   }
 
-  if (url.protocol === 'https:') {
+  if (url.protocol !== 'http:') {
+    if (url.protocol === 'https:') {
+      throw new Error(
+        `Target is HTTPS — jabearri currently records HTTP traffic only.\n` +
+        `Change your target to http://${url.host} to get started.\n` +
+        `(Most local test environments work fine over HTTP.)`
+      );
+    }
     throw new Error(
-      `Target is HTTPS — mozorrarri currently records HTTP traffic only.\n` +
-      `Change your target to http://${url.host} to get started.\n` +
-      `(Most local test environments work fine over HTTP.)`
+      `Target protocol "${url.protocol}" is not supported — jabearri only works with http:// targets.\n` +
+      `Example: { "target": "http://localhost:3000" }`
     );
   }
 
@@ -145,7 +202,7 @@ async function verifyTarget(targetUrl) {
   if (publicAddresses.length > 0) {
     throw new Error(
       `SAFETY BLOCK: Target "${hostname}" resolves to public IP(s): ${publicAddresses.join(', ')}.\n` +
-      `mozorrarri only works against local or private-network targets.\n` +
+      `jabearri only works against local or private-network targets.\n` +
       `Pointing this tool at systems you do not own or have written\n` +
       `authorization to test may be a criminal offence under the CFAA,\n` +
       `Computer Misuse Act, or equivalent laws in your jurisdiction.`
@@ -156,10 +213,49 @@ async function verifyTarget(targetUrl) {
 function verifyScope(scope) {
   if (!scope || !Array.isArray(scope) || scope.length === 0) {
     throw new Error(
-      'No scope declared. Add a "scope" array to your mozorrarri.config.json.\n' +
+      'No scope declared. Add a "scope" array to your jabearri.config.json.\n' +
       'Example: { "scope": ["/api/"] }'
     );
   }
+  for (const entry of scope) {
+    if (typeof entry !== 'string' || entry.length === 0) {
+      throw new Error(
+        `Invalid scope entry: ${JSON.stringify(entry)} — each scope entry must be a non-empty string.\n` +
+        'Example: { "scope": ["/api/", "/rest/"] }'
+      );
+    }
+    if (!entry.startsWith('/')) {
+      throw new Error(
+        `Invalid scope entry: ${JSON.stringify(entry)} — scope entries must start with "/".\n` +
+        'Example: { "scope": ["/api/"] }'
+      );
+    }
+    // Reject literal and arbitrarily-nested encoded traversal (%2e%2e, %252e%252e,
+    // %25252e%25252e, mixed-depth combinations, cap-boundary residuals, etc.).
+    //
+    // Two-step normalization mirrors what happens at request time:
+    //   1. decodeUntilStable — unwraps nested percent-encoding until stable or cap
+    //   2. foldEncodedDots  — converts any residual %2e/%2E to '.' so that the
+    //      subsequent '..' check catches entries that hit the cap boundary and
+    //      exited still containing encoded dot-segments that the WHATWG URL spec
+    //      would collapse natively (e.g. '/%2e%2e/' → '/' in new URL().pathname)
+    const decoded = foldEncodedDots(decodeUntilStable(entry));
+    if (decoded.includes('..')) {
+      throw new Error(
+        `Invalid scope entry: ${JSON.stringify(entry)} — scope entries must not contain ".." (including encoded forms).\n` +
+        'Path traversal in scope entries resolves to unexpected paths after normalization.'
+      );
+    }
+  }
 }
 
-module.exports = { verifyTarget, verifyScope, isPrivateHost, normalizeIPv4, stripIPv6Brackets };
+module.exports = {
+  verifyTarget,
+  verifyScope,
+  isPrivateHost,
+  normalizeIPv4,
+  stripIPv6Brackets,
+  decodeUntilStable,
+  foldEncodedDots,
+  DECODE_MAX_PASSES,
+};

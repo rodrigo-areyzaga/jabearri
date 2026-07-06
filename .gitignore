@@ -12,3 +12,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+# Generated reports — should not be committed
+*-report.json
+!test/fixtures/**/*.json

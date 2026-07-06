@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Validate mozorrarri against a recognized intentionally vulnerable application using its core workflow:
+Validate jabearri against a recognized intentionally vulnerable application using its core workflow:
 
 existing authenticated traffic → proxy capture → replay as second user → deterministic authorization finding.
 
@@ -10,13 +10,13 @@ existing authenticated traffic → proxy capture → replay as second user → d
 
 - **Application:** OWASP Juice Shop (Docker: `bkimminich/juice-shop`)
 - **Target URL:** `http://localhost:3000`
-- **mozorrarri version:** v0.10.1
+- **jabearri version:** v0.10.1
 - **Scope:** `/api/`, `/rest/`
-- **Mode:** `mozorrarri run -- node juice-shop-test.js`
+- **Mode:** `jabearri run -- node juice-shop-test.js`
 
 ## Result
 
-mozorrarri observed 8 authenticated Juice Shop requests and selected 3 URL-identified resource candidates for replay. All 3 produced confirmed cross-user replay findings.
+jabearri observed 8 authenticated Juice Shop requests and selected 3 URL-identified resource candidates for replay. All 3 produced confirmed cross-user replay findings.
 
 ### Confirmed findings
 
@@ -38,7 +38,7 @@ Each finding was confirmed by matching SHA-256 hashes of normalized JSON respons
 | `/api/Recycles/` | No URL-level resource ID |
 | `/rest/user/whoami` | No URL-level resource ID |
 
-These endpoints return session-scoped data based on the authenticated user, not based on a URL path parameter. mozorrarri's current model focuses on replaying resource-identified requests where the URL contains a candidate resource identifier. Session-scoped endpoints without URL-level resource IDs are observed but not replayed as BOLA candidates.
+These endpoints return session-scoped data based on the authenticated user, not based on a URL path parameter. jabearri's current model focuses on replaying resource-identified requests where the URL contains a candidate resource identifier. Session-scoped endpoints without URL-level resource IDs are observed but not replayed as BOLA candidates.
 
 ## What this validates
 
@@ -66,6 +66,6 @@ docker run -d --name juice-shop -p 3000:3000 bkimminich/juice-shop
 # Register users and get tokens
 node juice-shop-setup.js
 
-# Run mozorrarri (replace with Bob's actual token)
-MOZORRARRI_TOKEN_B="<bob-token>" node src/cli.js run -- node juice-shop-test.js
+# Run jabearri (replace with Bob's actual token)
+JABEARRI_TOKEN_B="<bob-token>" node src/cli.js run -- node juice-shop-test.js
 ```

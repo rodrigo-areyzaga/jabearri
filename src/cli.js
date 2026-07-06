@@ -13,7 +13,7 @@ const { runReplay }                 = require('./replay');
 const { printFindings, saveReport } = require('./reporter');
 
 const VERSION         = '0.10.1';
-const CONSENT_FILE    = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.MOZORRARRI_consent');
+const CONSENT_FILE    = path.join(process.env.HOME || process.env.USERPROFILE || '.', '.jabearri_consent');
 const REQUIRED_PHRASE = 'I own or have written authorization to test the target system';
 
 // Detect CI environments — GitHub Actions, CircleCI, Jenkins, GitLab CI,
@@ -37,14 +37,14 @@ async function requireConsent() {
         ci:       true,
       }), 'utf8');
     } catch { /* non-fatal */ }
-    console.log('[mozorrarri] CI environment detected — authorization gate skipped.');
-    console.log('[mozorrarri] By running mozorrarri in CI you confirm you own or have');
-    console.log('[mozorrarri] written authorization to test the target system.\n');
+    console.log('[jabearri] CI environment detected — authorization gate skipped.');
+    console.log('[jabearri] By running jabearri in CI you confirm you own or have');
+    console.log('[jabearri] written authorization to test the target system.\n');
     return;
   }
 
   console.log('\n' + '═'.repeat(66));
-  console.log(`  mozorrarri v${VERSION} — authorization required`);
+  console.log(`  jabearri v${VERSION} — authorization required`);
   console.log('═'.repeat(66));
   console.log('\n  This tool probes your application for access control');
   console.log('  vulnerabilities. You must only use it against systems');
@@ -70,7 +70,7 @@ async function requireConsent() {
       agreedAt: new Date().toISOString(),
       phrase:   REQUIRED_PHRASE,
     }), 'utf8');
-    console.log('\n  Consent recorded. mozorrarri is ready to use.\n');
+    console.log('\n  Consent recorded. jabearri is ready to use.\n');
   } catch (err) {
     console.warn(`\n  Warning: could not save consent record: ${err.message}`);
     console.warn('  You will be asked to confirm again on the next run.\n');
@@ -80,11 +80,11 @@ async function requireConsent() {
 // ── Config loading ────────────────────────────────────────────────────────────
 
 function loadConfig() {
-  const configPath = path.resolve(process.env.MOZORRARRI_CONFIG || 'mozorrarri.config.json');
+  const configPath = path.resolve(process.env.JABEARRI_CONFIG || 'jabearri.config.json');
 
   if (!fs.existsSync(configPath)) {
-    console.error(`[mozorrarri] No config found at ${configPath}`);
-    console.error('[mozorrarri] Create mozorrarri.config.json — see README for format.');
+    console.error(`[jabearri] No config found at ${configPath}`);
+    console.error('[jabearri] Create jabearri.config.json — see README for format.');
     process.exit(1);
   }
 
@@ -92,15 +92,15 @@ function loadConfig() {
   try {
     raw = fs.readFileSync(configPath, 'utf8');
   } catch (err) {
-    console.error(`[mozorrarri] Could not read config at ${configPath}: ${err.message}`);
+    console.error(`[jabearri] Could not read config at ${configPath}: ${err.message}`);
     process.exit(1);
   }
 
   try {
     return JSON.parse(raw);
   } catch (err) {
-    console.error(`[mozorrarri] Config file is not valid JSON: ${err.message}`);
-    console.error(`[mozorrarri] Check ${configPath} for syntax errors.`);
+    console.error(`[jabearri] Config file is not valid JSON: ${err.message}`);
+    console.error(`[jabearri] Check ${configPath} for syntax errors.`);
     process.exit(1);
   }
 }
@@ -113,8 +113,8 @@ function parseArgs(argv) {
   }
 
   if (argv[1] !== '--' || argv.length < 3) {
-    console.error('[mozorrarri] Usage: mozorrarri run -- <test command>');
-    console.error('[mozorrarri] Example: MOZORRARRI_TOKEN_B=... mozorrarri run -- npm test');
+    console.error('[jabearri] Usage: jabearri run -- <test command>');
+    console.error('[jabearri] Example: JABEARRI_TOKEN_B=... jabearri run -- npm test');
     process.exit(1);
   }
 
@@ -130,15 +130,15 @@ function proxyEnv(port) {
   const env = { ...process.env };
 
   // The wrapped tests need the proxy address, not the replay credential.
-  // Keep MOZORRARRI_TOKEN_B inside mozorrarri so Bob's token is not exposed to
+  // Keep JABEARRI_TOKEN_B inside jabearri so Bob's token is not exposed to
   // test code, browser drivers, npm lifecycle hooks, or CI logs.
-  delete env.MOZORRARRI_TOKEN_B;
+  delete env.JABEARRI_TOKEN_B;
 
   return {
     ...env,
     HTTP_PROXY:         proxyUrl,
     http_proxy:         proxyUrl,
-    MOZORRARRI_PROXY_URL: proxyUrl,
+    JABEARRI_PROXY_URL: proxyUrl,
   };
 }
 
@@ -163,7 +163,7 @@ function startCommand(command, args, port) {
 
   const result = new Promise(resolve => {
     child.on('error', err => {
-      console.error(`[mozorrarri] Could not run wrapped command: ${err.message}`);
+      console.error(`[jabearri] Could not run wrapped command: ${err.message}`);
       resolve({ code: 2, signal: null });
     });
 
@@ -188,17 +188,17 @@ async function main() {
     scope,
     exclude     = [],
     port        = 8877,
-    outputFile  = 'mozorrarri-report.json',
+    outputFile  = 'jabearri-report.json',
     minObserved = 0,   // exit non-zero if fewer than this many requests observed
   } = config;
 
-  const secondToken = process.env.MOZORRARRI_TOKEN_B;
+  const secondToken = process.env.JABEARRI_TOKEN_B;
 
   try {
     await verifyTarget(target);
     verifyScope(scope);
   } catch (err) {
-    console.error(`\n[mozorrarri] ${err.message}\n`);
+    console.error(`\n[jabearri] ${err.message}\n`);
     process.exit(1);
   }
 
@@ -211,30 +211,30 @@ async function main() {
     if (finalizing) return;
     finalizing = true;
 
-    console.log('\n[mozorrarri] Stopping proxy and running replay...');
+    console.log('\n[jabearri] Stopping proxy and running replay...');
 
     try {
       await proxy.close();
     } catch (err) {
-      console.error(`[mozorrarri] Error closing proxy: ${err.message}`);
+      console.error(`[jabearri] Error closing proxy: ${err.message}`);
     }
 
     // ── minObserved floor ─────────────────────────────────────────────────────
     // If fewer than minObserved requests were recorded, the proxy may have been
     // bypassed silently. Exit non-zero so CI fails visibly rather than green.
     if (minObserved > 0 && store.size() < minObserved) {
-      console.error(`\n[mozorrarri] PROXY BYPASS DETECTED`);
-      console.error(`[mozorrarri] Expected at least ${minObserved} authenticated requests.`);
-      console.error(`[mozorrarri] Only ${store.size()} were observed.`);
-      console.error(`[mozorrarri] Check that HTTP_PROXY is set and your HTTP client respects it.`);
-      console.error(`[mozorrarri] Note: Node fetch (undici), axios, and Playwright require`);
-      console.error(`[mozorrarri] explicit proxy configuration — see README troubleshooting.\n`);
+      console.error(`\n[jabearri] PROXY BYPASS DETECTED`);
+      console.error(`[jabearri] Expected at least ${minObserved} authenticated requests.`);
+      console.error(`[jabearri] Only ${store.size()} were observed.`);
+      console.error(`[jabearri] Check that HTTP_PROXY is set and your HTTP client respects it.`);
+      console.error(`[jabearri] Note: Node fetch (undici), axios, and Playwright require`);
+      console.error(`[jabearri] explicit proxy configuration — see README troubleshooting.\n`);
       process.exit(2); // exit 2 = proxy bypass (distinct from exit 1 = findings)
     }
 
     if (!secondToken) {
-      console.log('[mozorrarri] MOZORRARRI_TOKEN_B not set — skipping replay.');
-      console.log('[mozorrarri] Set it to a second user\'s session token to enable checks.');
+      console.log('[jabearri] JABEARRI_TOKEN_B not set — skipping replay.');
+      console.log('[jabearri] Set it to a second user\'s session token to enable checks.');
       process.exit(preferredExitCode === null ? 0 : preferredExitCode);
     }
 
@@ -242,7 +242,7 @@ async function main() {
     try {
       findings = await runReplay({ store, targetUrl: target, secondToken });
     } catch (err) {
-      console.error(`[mozorrarri] Replay failed: ${err.message}`);
+      console.error(`[jabearri] Replay failed: ${err.message}`);
     }
 
     printFindings(findings, store);
@@ -250,10 +250,14 @@ async function main() {
       target,
       scope,
       exclude,
-      command:      args.mode === 'run' ? [args.command, ...args.commandArgs].join(' ') : null,
+      // Store only the command name — never the args.
+      // Command arguments may contain secrets (--password=, --token=, env-injected values).
+      // Storing the full command string would persist those secrets in the report JSON.
+      command:      args.mode === 'run' ? args.command : null,
+      commandArgsSuppressed: args.mode === 'run' ? true : null,
       environment:  process.env.NODE_ENV || process.env.ENVIRONMENT || null,
-      userALabel:   process.env.MOZORRARRI_USER_A_LABEL || null,
-      userBLabel:   process.env.MOZORRARRI_USER_B_LABEL || null,
+      userALabel:   process.env.JABEARRI_USER_A_LABEL || null,
+      userBLabel:   process.env.JABEARRI_USER_B_LABEL || null,
     });
 
     // Exit-code disambiguation — when the wrapped command also failed, make it
@@ -261,10 +265,10 @@ async function main() {
     // exit 0 = clean. exit 1 = findings or test failure. exit 2 = proxy/setup.
     const hasFindings = findings.filter(f => f.type === 'broken-access-control' || f.type === 'possible-missing-authentication').length > 0;
     if (hasFindings && preferredExitCode !== null && preferredExitCode !== 0) {
-      console.log('\n[mozorrarri] NOTE: The wrapped command also exited with a non-zero code.');
-      console.log('[mozorrarri] Both the test suite failure AND the authorization findings above');
-      console.log('[mozorrarri] contributed to this exit. Check the report for details:');
-      console.log(`[mozorrarri]   ${outputFile || 'mozorrarri-report.json'}\n`);
+      console.log('\n[jabearri] NOTE: The wrapped command also exited with a non-zero code.');
+      console.log('[jabearri] Both the test suite failure AND the authorization findings above');
+      console.log('[jabearri] contributed to this exit. Check the report for details:');
+      console.log(`[jabearri]   ${outputFile || 'jabearri-report.json'}\n`);
     }
 
     if (hasFindings) process.exit(1);
@@ -277,24 +281,24 @@ async function main() {
     exclude,
     store,
     // In wrapper mode the child process exiting is the completion signal.
-    // Do not let wrapped test code finalize mozorrarri early by POSTing /--flush.
+    // Do not let wrapped test code finalize jabearri early by POSTing /--flush.
     onFlush: args.mode === 'run' ? null : () => triggerFlush(),
   });
 
   try {
     await proxy.listen(port);
   } catch (err) {
-    console.error(`[mozorrarri] Could not start proxy on port ${port}: ${err.message}`);
-    console.error(`[mozorrarri] Is something already running on port ${port}?`);
+    console.error(`[jabearri] Could not start proxy on port ${port}: ${err.message}`);
+    console.error(`[jabearri] Is something already running on port ${port}?`);
     process.exit(1);
   }
 
-  console.log(`\n  mozorrarri v${VERSION}`);
+  console.log(`\n  jabearri v${VERSION}`);
   console.log(`  ${'─'.repeat(44)}`);
   console.log(`  Proxy       : http://127.0.0.1:${port}`);
   console.log(`  Target      : ${target}`);
   console.log(`  Scope       : ${scope.join(', ')}`);
-  console.log(`  Replay      : ${secondToken ? 'enabled' : 'disabled (set MOZORRARRI_TOKEN_B)'}`);
+  console.log(`  Replay      : ${secondToken ? 'enabled' : 'disabled (set JABEARRI_TOKEN_B)'}`);
   console.log(`  Min observed: ${minObserved > 0 ? minObserved : 'not set'}`);
   console.log(`  ${'─'.repeat(44)}`);
 
@@ -308,7 +312,7 @@ async function main() {
   });
 
   if (args.mode === 'run') {
-    console.log(`[mozorrarri] Running wrapped command: ${args.command}\n`);
+    console.log(`[jabearri] Running wrapped command: ${args.command}\n`);
     const wrapped = startCommand(args.command, args.commandArgs, port);
     childProcess = wrapped.child;
     const result = await wrapped.result;
@@ -322,6 +326,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('[mozorrarri] Fatal:', err.message);
+  console.error('[jabearri] Fatal:', err.message);
   process.exit(1);
 });

@@ -5,7 +5,10 @@ const fs     = require('fs');
 
 // Maximum entries before the store warns and stops recording.
 // Prevents unbounded memory growth in large test suites.
-const MAX_ENTRIES = parseInt(process.env.MOZORRARRI_MAX_ENTRIES || "10000", 10);
+const _parsedMax = parseInt(process.env.JABEARRI_MAX_ENTRIES || '10000', 10);
+const MAX_ENTRIES = Number.isSafeInteger(_parsedMax) && _parsedMax > 0
+  ? Math.min(_parsedMax, 1_000_000) // clamp to sane upper bound
+  : 10000;
 
 
 function fingerprintToken(raw) {
@@ -30,13 +33,13 @@ function getHeader(headers, name) {
 // type is 'bearer', 'other-auth', or 'cookie' — used by replay to send the
 // second token in the correct format.
 //
-// Auth scheme generalization: mozorrarri doesn't need to understand the scheme —
+// Auth scheme generalization: jabearri doesn't need to understand the scheme —
 // it only needs to know "this request carried auth" and "this is its fingerprint."
 // Bearer gets special handling because replay knows how to substitute it.
 // All other Authorization schemes (Basic, Digest, Token, ApiKey) are recorded
 // with type 'other-auth' — replay will warn that substitution is not supported
 // for this scheme and the request will be replayed without auth (likely 401).
-// X-API-Key is handled via MOZORRARRI_API_KEY_HEADER env var (default: x-api-key).
+// X-API-Key is handled via JABEARRI_API_KEY_HEADER env var (default: x-api-key).
 function extractToken(headers) {
   // Guard against array-valued Authorization headers — Node's http module
   // usually gives a string, but some test frameworks or proxy middleware
@@ -50,10 +53,10 @@ function extractToken(headers) {
   const auth = authHeader || '';
 
   if (auth.toLowerCase().startsWith('bearer ')) {
-    const raw = auth.slice(7).trim();
-    // Only return bearer if the extracted value is non-empty.
-    // An empty Authorization: Bearer header (stale/malformed) should fall
-    // through to cookie auth rather than recording the wrong auth type.
+    // Trim to first line — a newline in a bearer token value is malformed.
+    // Storing "token\nX-Injected: evil" as the raw value is cosmetically wrong
+    // even though it's only used for fingerprinting (SHA-256 input).
+    const raw = auth.slice(7).split('\n')[0].trim();
     if (raw) return { raw, type: 'bearer', cookieName: null };
   }
 
@@ -76,9 +79,9 @@ function extractToken(headers) {
   }
 
   // X-API-Key header — common non-Authorization API key pattern.
-  // Configurable via MOZORRARRI_API_KEY_HEADER (default: x-api-key).
+  // Configurable via JABEARRI_API_KEY_HEADER (default: x-api-key).
   // Guard against array-valued headers — same pattern as Authorization.
-  const apiKeyHeader = (process.env.MOZORRARRI_API_KEY_HEADER || 'x-api-key').toLowerCase();
+  const apiKeyHeader = (process.env.JABEARRI_API_KEY_HEADER || 'x-api-key').toLowerCase();
   const apiKeyRaw = getHeader(headers, apiKeyHeader);
   const apiKeyVal = Array.isArray(apiKeyRaw)
     ? apiKeyRaw.find(v => v && v.trim()) || ''
@@ -97,7 +100,7 @@ function extractToken(headers) {
 
   // Cookie name resolution — three levels, first match wins:
   //
-  // 1. MOZORRARRI_COOKIE_NAME env var — operator knows their app, use exactly.
+  // 1. JABEARRI_COOKIE_NAME env var — operator knows their app, use exactly.
   // 2. Generic session names — fast path for simple/custom apps.
   // 3. Framework defaults — explicit curated list of known framework cookie names.
   //    Not a substring match (avoids grabbing csrftoken, xsrf-token, etc.).
@@ -105,10 +108,10 @@ function extractToken(headers) {
   //    Django, Flask, and __Secure- prefixed variants.
   //
   // If none match, the request is recorded without a token and skipped for replay.
-  // Set MOZORRARRI_COOKIE_NAME to force a specific name for unusual frameworks.
+  // Set JABEARRI_COOKIE_NAME to force a specific name for unusual frameworks.
 
-  const COOKIE_OVERRIDE = process.env.MOZORRARRI_COOKIE_NAME
-    ? new Set([process.env.MOZORRARRI_COOKIE_NAME.toLowerCase()])
+  const COOKIE_OVERRIDE = process.env.JABEARRI_COOKIE_NAME
+    ? new Set([process.env.JABEARRI_COOKIE_NAME.toLowerCase()])
     : null;
 
   const SESSION_NAMES_GENERIC = new Set([
@@ -161,7 +164,7 @@ function extractToken(headers) {
 // Extracts resource IDs from a URL path.
 // Handles integers, UUIDs, and slug-style IDs (ord-1001, user-alice, pay-1).
 // Extracts resource IDs from a URL path/query.
-// Candidate filtering matters: mozorrarri should replay protected resources, not
+// Candidate filtering matters: jabearri should replay protected resources, not
 // every authenticated endpoint that happens to contain a number or hyphenated
 // route name. This skips API version markers (v1/v2/v10) and treats query values
 // as resource IDs only when the query key is id-like.
@@ -275,7 +278,7 @@ class SessionStore {
     if (this.entries.length >= MAX_ENTRIES) {
       if (!this._capped) {
         console.warn(
-          `[mozorrarri] Session store reached ${MAX_ENTRIES} entries — ` +
+          `[jabearri] Session store reached ${MAX_ENTRIES} entries — ` +
           `stopping recording. Increase MAX_ENTRIES if needed.`
         );
         this._capped = true;
@@ -347,7 +350,7 @@ class SessionStore {
         entries:     this.entries,
       }, null, 2), 'utf8');
     } catch (err) {
-      console.error(`[mozorrarri] Could not save session store to ${filePath}: ${err.message}`);
+      console.error(`[jabearri] Could not save session store to ${filePath}: ${err.message}`);
     }
   }
 

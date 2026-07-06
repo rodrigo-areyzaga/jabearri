@@ -1,0 +1,10 @@
+test/
+docs/external-validation/
+*.tar.gz
+*-report.json
+vampi-test.js
+vampi-accguard.config.json
+vampi-probe.js
+juice-shop-test.js
+juice-shop-setup.js
+.github/

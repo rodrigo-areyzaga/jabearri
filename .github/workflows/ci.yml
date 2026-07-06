@@ -19,4 +19,4 @@ jobs:
           node-version: '24'
 
       - name: Run tests
-        run: node test/run.js
+        run: npm run test:all

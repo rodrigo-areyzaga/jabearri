@@ -1,7 +1,7 @@
-# mozorrarri v0.10.1 — Adversarial Security Assessment
+# jabearri v0.10.1 — Adversarial Security Assessment
 
-**Build:** v0.10.1 — 672 built-in tests passing
-**Assessment:** Twelve adversarial rounds (v0.9.2) plus Exposure Summary verification (v0.10.1). 85+ attack vectors. 13 harnesses. Zero open findings.
+**Build:** v0.10.1 + security fixes — 875 total tests passing (720 + 81 + 74 across three harnesses)
+**Assessment:** Twelve adversarial rounds (v0.9.2) plus Exposure Summary verification (v0.10.1) plus encoded scope traversal hardening (post-v0.10.1). 85+ attack vectors. 13 harnesses. Zero open findings.
 
 ---
 
@@ -13,7 +13,7 @@ The tool is clean. Ship it.
 
 ## Part 1: The One Thing
 
-*Does mozorrarri correctly tell you whether user B can access user A's resources?*
+*Does jabearri correctly tell you whether user B can access user A's resources?*
 
 **Yes**, within its documented scope (read-side, HTTP, known ID patterns). Every correctness bug found across twelve adversarial rounds has been fixed and verified.
 
@@ -21,7 +21,7 @@ The tool is clean. Ship it.
 Hash comparison with sortKeys normalization, big-integer precision preservation, Unicode NFC normalization, identity-field array reorder absorption, trivial-payload downgrade, and hash-family consistency with rawHash cross-family fallback. Verified against 20+ detection-quality scenarios including adversarial false-positive and false-negative constructions.
 
 ### Capture pipeline
-Bearer tokens, cookies (13+ framework defaults, MOZORRARRI_COOKIE_NAME override, array-header iteration, empty-bearer fallthrough), non-Bearer Authorization schemes (Basic, Digest, Token, ApiKey — recorded as other-auth with scheme reconstruction), X-API-Key (MOZORRARRI_API_KEY_HEADER configurable), and scheme-less Authorization headers. All verified end-to-end through proxy→record→replay→finding.
+Bearer tokens, cookies (13+ framework defaults, JABEARRI_COOKIE_NAME override, array-header iteration, empty-bearer fallthrough), non-Bearer Authorization schemes (Basic, Digest, Token, ApiKey — recorded as other-auth with scheme reconstruction), X-API-Key (JABEARRI_API_KEY_HEADER configurable), and scheme-less Authorization headers. All verified end-to-end through proxy→record→replay→finding.
 
 ### Scope matching
 Case-insensitive, two-pass percent-decoded, traversal-resolved, matrix-parameter-stripped, trailing-slash-boundary-guarded. Eight bypass vectors tested; all blocked. SSRF blocked by design.
@@ -98,4 +98,5 @@ Proxy survived randomized stress testing (40 fuzz requests: random paths, 10KB U
 | 0.10.1 | Sanitization collision hid that multiple dynamic keys existed | Added honest `sanitizedFieldPaths` / `sanitizedKeyTypes` / `sanitizedKeySegments` disclosure. |
 | 0.10.1 | Reporter claimed "JSON normalisation" for raw-prefixed (big-int) hashes | `whyFlagged()` now branches on the actual hash prefix; wording matches the proof artifact |
 | 0.10.1 | Sensitive data in URLs not addressed | Documented as a conscious reproducibility tradeoff; tests lock the behavior so a future silent change is caught. |
-| 0.10.1 | False positives from over-eager resource-ID extraction | `extractResourceIds` rewritten: skips API version segments (`v1`/`v2`/`v10`), rejects hyphenated route names directly under `/api`, extracts query-string IDs only from id-like keys. 672 tests passing. |
+| 0.10.1 | False positives from over-eager resource-ID extraction | `extractResourceIds` rewritten: skips API version segments (`v1`/`v2`/`v10`), rejects hyphenated route names directly under `/api`, extracts query-string IDs only from id-like keys. 708 tests passing. |
+| post-0.10.1 | Encoded scope traversal (triple/mixed-depth + cap-boundary) could widen effective scope | `verifyScope()` and `normalizePath()` now apply `foldEncodedDots(decodeUntilStable(input))`: fixed-point decode (capped for DoS safety) plus explicit `%2e`/`%2E` folding to mirror the WHATWG URL spec's native dot-segment collapsing. 875 tests passing (720 + 81 + 74). |

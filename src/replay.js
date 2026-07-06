@@ -335,8 +335,8 @@ function replayRequest({ targetUrl, entry, secondToken }) {
         'accept-encoding': 'identity', // force uncompressed — matches recorded hash
         // Preserve original User-Agent — servers that vary response content by UA
         // (bot detection, content adaptation) would produce different hashes if
-        // we sent mozorrarri/0.10.1. Use the original UA to maximize replay fidelity.
-        'user-agent':      entry.userAgent || 'mozorrarri/0.10.1',
+        // we sent jabearri/0.10.1. Use the original UA to maximize replay fidelity.
+        'user-agent':      entry.userAgent || 'jabearri/0.10.1',
         ...authHeaders(secondToken, entry),
       },
     };
@@ -378,7 +378,7 @@ async function runReplay({ store, targetUrl, secondToken, logger }) {
   let findingSeq = 0;
 
   if (!secondToken) {
-    log.log('[mozorrarri] MOZORRARRI_TOKEN_B not set — skipping replay.');
+    log.log('[jabearri] JABEARRI_TOKEN_B not set — skipping replay.');
     return findings;
   }
 
@@ -395,7 +395,7 @@ async function runReplay({ store, targetUrl, secondToken, logger }) {
         path:     '/',
         method:   'HEAD',
         headers:  { ...authHeaders(secondToken, entries[0] || { tokenType: 'bearer', cookieName: null }),
-                    'user-agent': (entries[0] && entries[0].userAgent) || 'mozorrarri/0.10.1-canary' },
+                    'user-agent': (entries[0] && entries[0].userAgent) || 'jabearri/0.10.1-canary' },
       }, res => resolve(res.statusCode));
       req.on('error', reject);
       req.setTimeout(3000, () => { req.destroy(); reject(new Error('timeout')); });
@@ -403,24 +403,24 @@ async function runReplay({ store, targetUrl, secondToken, logger }) {
     });
     // 401/403 strongly suggests TOKEN_B is invalid or expired
     if (canaryResult === 401 || canaryResult === 403) {
-      log.log('[mozorrarri] WARNING: TOKEN_B canary returned ' + canaryResult + ' — token may be invalid or expired.');
-      log.log('[mozorrarri] All replays may return ' + canaryResult + ', producing a false clean run.');
-      log.log('[mozorrarri] Verify MOZORRARRI_TOKEN_B is a valid, non-expired session token.');
+      log.log('[jabearri] WARNING: TOKEN_B canary returned ' + canaryResult + ' — token may be invalid or expired.');
+      log.log('[jabearri] All replays may return ' + canaryResult + ', producing a false clean run.');
+      log.log('[jabearri] Verify JABEARRI_TOKEN_B is a valid, non-expired session token.');
     } else {
-      log.log('[mozorrarri] ✓ TOKEN_B canary authenticated (status ' + canaryResult + ')');
+      log.log('[jabearri] ✓ TOKEN_B canary authenticated (status ' + canaryResult + ')');
     }
   } catch (err) {
-    log.log('[mozorrarri] Token B canary check failed: ' + err.message + ' — proceeding anyway.');
+    log.log('[jabearri] Token B canary check failed: ' + err.message + ' — proceeding anyway.');
   }
 
-  log.log(`[mozorrarri] Replaying ${entries.length} requests as user B...`);
+  log.log(`[jabearri] Replaying ${entries.length} requests as user B...`);
 
   for (const entry of entries) {
     let result;
     try {
       result = await replayRequest({ targetUrl, entry, secondToken });
     } catch (err) {
-      log.log(`[mozorrarri] Replay error on ${entry.path}: ${err.message}`);
+      log.log(`[jabearri] Replay error on ${entry.path}: ${err.message}`);
       continue;
     }
 
@@ -480,7 +480,7 @@ async function runReplay({ store, targetUrl, secondToken, logger }) {
               'accept-encoding': 'identity',
               // Use original User-Agent — same as replay to avoid bot-detection
               // content variation causing a classification mismatch.
-              'user-agent':      entry.userAgent || 'mozorrarri/0.10.1-anon',
+              'user-agent':      entry.userAgent || 'jabearri/0.10.1-anon',
               // No Authorization or Cookie header — truly unauthenticated
             },
           }, res => {

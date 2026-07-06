@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * mozorrarri — deep adversarial harness
+ * jabearri — deep adversarial harness
  *
  * Targets the four real bugs found in the previous review round:
  *   1. hasBigInts false-triggering on float mantissas → raw: hash instead of json:
@@ -343,7 +343,7 @@ const tids = extractResourceIds('/api/reports?team_ids=42,43');
 ok('team_ids comma-sep: both values extracted', tids.some(r => r.value === '42') && tids.some(r => r.value === '43'));
 
 console.log('\n\n' + '═'.repeat(64));
-console.log('  mozorrarri — deep adversarial harness results');
+console.log('  jabearri — deep adversarial harness results');
 console.log('═'.repeat(64));
 console.log(`  Passed: ${passed}`);
 console.log(`  Failed: ${failed}`);

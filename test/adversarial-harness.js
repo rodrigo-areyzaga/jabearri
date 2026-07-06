@@ -2,11 +2,11 @@
 'use strict';
 
 /**
- * mozorrarri — comprehensive adversarial harness
+ * jabearri — comprehensive adversarial harness
  *
  * Axes:
  *   1. Security    — injection, bypass, data leakage, SSRF surface
- *   2. Correctness — edge cases the 687 suite doesn't exercise
+ *   2. Correctness — edge cases the main suite doesn't exercise
  *   3. Performance — memory, throughput, large payloads
  *   4. Stability   — concurrency, race conditions, error paths
  *   5. Blindspots  — new angles on the detection and reporting logic
@@ -15,6 +15,7 @@
 const http   = require('http');
 const crypto = require('crypto');
 const path   = require('path');
+const os     = require('os');
 const fs     = require('fs');
 
 const root = path.join(__dirname, '..');
@@ -141,7 +142,7 @@ leakStore.record({
   statusCode: 200, contentLength: 50,
   contentHash: 'json:abc', rawHash: 'raw:xyz',
 });
-const tmpReport = '/tmp/mozorrarri-leak-test.json';
+const tmpReport = os.tmpdir() + '/jabearri-leak-test.json';
 saveReport([], leakStore, tmpReport, { target: 'http://localhost:3000', scope: ['/api/'] });
 const reportContent = fs.readFileSync(tmpReport, 'utf8');
 check('Raw token not in report JSON', () => !reportContent.includes('VERY_SECRET_TOKEN_ABC'));
@@ -562,7 +563,7 @@ noRemStore.record({
   statusCode: 200, contentLength: 50,
   contentHash: 'json:abc', rawHash: 'raw:xyz',
 });
-const remTmpPath = '/tmp/mozorrarri-rem-test.json';
+const remTmpPath = os.tmpdir() + '/jabearri-rem-test.json';
 saveReport([{
   type: 'broken-access-control', severity: 'high', confidence: 'confirmed',
   findingId: 'AG-TEST-001', method: 'GET', path: '/api/orders/1001',
@@ -591,7 +592,7 @@ check('EXPECTED ABSENT: reportIntegrity.reportHash not yet in report (documents 
 sec('BLINDSPOT — runContext when mode is proxy (not wrapper)');
 
 // When running in manual proxy mode (not wrapper), command should be null
-const proxyModeReport = '/tmp/mozorrarri-proxy-mode.json';
+const proxyModeReport = os.tmpdir() + '/jabearri-proxy-mode.json';
 saveReport([], noRemStore, proxyModeReport, {
   target: 'http://localhost:3000',
   scope: ['/api/'],
@@ -613,8 +614,8 @@ check('Binary body exposure summary skipped or has no field paths', () =>
 
 sec('BLINDSPOT — principalPair labels in report');
 
-// When MOZORRARRI_USER_A_LABEL is not set, should default gracefully
-const noLabelReport = '/tmp/mozorrarri-nolabel.json';
+// When JABEARRI_USER_A_LABEL is not set, should default gracefully
+const noLabelReport = os.tmpdir() + '/jabearri-nolabel.json';
 saveReport([], noRemStore, noLabelReport, {
   target: 'http://localhost:3000',
   scope: ['/api/'],
@@ -662,7 +663,7 @@ for (const { matchType, hash, expected } of matchTypes) {
 // ── Results ───────────────────────────────────────────────────────────────────
 
 console.log('\n\n' + '═'.repeat(64));
-console.log('  mozorrarri — adversarial harness results');
+console.log('  jabearri — adversarial harness results');
 console.log('═'.repeat(64));
 console.log(`  Passed: ${passed}`);
 console.log(`  Failed: ${failed}`);

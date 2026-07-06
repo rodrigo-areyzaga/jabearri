@@ -5,24 +5,28 @@ const https  = require('https');
 const crypto = require('crypto');
 const { URL } = require('url');
 const { contentHash } = require('./replay');
-const { stripIPv6Brackets } = require('./safety');
+const { stripIPv6Brackets, decodeUntilStable, foldEncodedDots, verifyScope } = require('./safety');
 
 // Normalize a URL path for scope/exclude matching.
 // Applies the same transformations most web servers apply before routing:
-//   1. Lowercase
-//   2. Two-pass percent-decode — catches double-encoding (%252F → %2F → /)
-//      and other double-encoded characters (%2562 → %62 → b)
-//   3. Replace residual %2f/%2F with / after decode passes
-//   4. Resolve path traversal via URL normalization
-//   5. Strip matrix parameters (;param=value) — Java/Tomcat strip these before routing
+//   1. Fixed-point percent-decode (bounded by DECODE_MAX_PASSES)
+//   2. Fold any residual %2e/%2E → '.' (the WHATWG URL spec collapses these
+//      as dot-segment equivalents even without an explicit decode step, so
+//      a cap-boundary residual like '/%2e%2e/' would otherwise be silently
+//      widened by the URL normalization in step 4)
+//   3. Lowercase
+//   4. Replace residual %2f/%2F with / after decode passes
+//   5. Resolve path traversal via URL normalization
+//   6. Strip matrix parameters (;param=value) — Java/Tomcat strip these before routing
+//
+// Steps 1+2 mirror the pipeline used in verifyScope() (safety.js), so the two
+// functions always agree on whether a given path is a traversal, regardless of
+// encoding depth. If verifyScope() rejects an entry, normalizePath() produces
+// the same result; if verifyScope() accepts an entry, normalizePath() does not
+// widen it.
 function normalizePath(p) {
   try {
-    // Two-pass decode: first pass handles single encoding, second catches double encoding.
-    // decodeURIComponent throws on malformed sequences — catch and use what we have.
-    let decoded = p;
-    for (let i = 0; i < 2; i++) {
-      try { decoded = decodeURIComponent(decoded); } catch { break; }
-    }
+    let decoded = foldEncodedDots(decodeUntilStable(p));
     decoded = decoded.toLowerCase();
     // Replace any residual encoded slashes that survived decoding
     decoded = decoded.replace(/%2f/gi, '/');
@@ -44,6 +48,10 @@ const STRIP_HEADERS = new Set(['accept-encoding', 'transfer-encoding', 'connecti
 class ProxyCore {
   constructor({ target, scope, exclude = [], store, logger, onFlush }) {
     this.target   = new URL(target);
+    // Validate scope before normalizing — the CLI always calls verifyScope() first,
+    // but library/API callers may not. Validating here ensures no code path can
+    // construct a ProxyCore with a scope that would silently widen at request time.
+    verifyScope(scope);
     // Normalize scope and exclude at construction time — lowercase and decode
     // unreserved percent-encoding so they match what the target router sees.
     // Prevents case/encoding discrepancies between proxy scope matching and
@@ -170,9 +178,9 @@ class ProxyCore {
     try {
       upstream = await this._forward(req, bodyBuffer, inScope);
     } catch (err) {
-      this.logger.error(`[mozorrarri] Forward error: ${err.message}`);
+      this.logger.error(`[jabearri] Forward error: ${err.message}`);
       res.writeHead(502);
-      res.end('mozorrarri: upstream connection failed');
+      res.end('jabearri: upstream connection failed');
       return;
     }
 
@@ -197,15 +205,15 @@ class ProxyCore {
     return new Promise((resolve, reject) => {
       this.server = http.createServer((req, res) => {
         this._handleRequest(req, res).catch(err => {
-          this.logger.error(`[mozorrarri] Unhandled error: ${err.message}`);
-          if (!res.headersSent) { res.writeHead(500); res.end('mozorrarri: internal error'); }
+          this.logger.error(`[jabearri] Unhandled error: ${err.message}`);
+          if (!res.headersSent) { res.writeHead(500); res.end('jabearri: internal error'); }
         });
       });
 
       // Catch HTTPS CONNECT attempts — explain clearly instead of failing silently
       this.server.on('connect', (req, socket) => {
         this.logger.log(
-          `[mozorrarri] HTTPS request for "${req.url}" — mozorrarri records HTTP only.\n` +
+          `[jabearri] HTTPS request for "${req.url}" — jabearri records HTTP only.\n` +
           `           Update your target to http:// or configure your app to use HTTP in tests.`
         );
         socket.write('HTTP/1.1 501 HTTPS Not Supported\r\n\r\n');
@@ -218,7 +226,7 @@ class ProxyCore {
       // SAFETY: bind only to loopback — cannot be reached from outside this machine
       this.server.listen(port, '127.0.0.1', () => {
         this.server.removeListener('error', reject);
-        this.logger.log(`[mozorrarri] Proxy listening on 127.0.0.1:${port} → ${this.target.href}`);
+        this.logger.log(`[jabearri] Proxy listening on 127.0.0.1:${port} → ${this.target.href}`);
         resolve();
       });
     });

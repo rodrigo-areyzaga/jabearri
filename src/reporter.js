@@ -104,7 +104,7 @@ function buildPlainSummary(cov, bolaCount, misauthCount) {
     ? ` ${notRep} observed request${notRep !== 1 ? 's' : ''} ${notRep === 1 ? 'was' : 'were'} not replayed: ${notRepParts.join('; ')}.`
     : '';
 
-  return `mozorrarri observed ${observed} authenticated request${observed !== 1 ? 's' : ''} and replayed ${replayed} URL-identified resource candidate${replayed !== 1 ? 's' : ''} as a second authenticated user. ${what}${notRepStr} A clean result means this specific failure mode was not observed in the traffic mozorrarri saw — it does not prove the API has no authorization bugs.`;
+  return `jabearri observed ${observed} authenticated request${observed !== 1 ? 's' : ''} and replayed ${replayed} URL-identified resource candidate${replayed !== 1 ? 's' : ''} as a second authenticated user. ${what}${notRepStr} A clean result means this specific failure mode was not observed in the traffic jabearri saw — it does not prove the API has no authorization bugs.`;
 }
 
 // ── Print findings ────────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ function printFindings(findings, store) {
   const review  = findings.filter(f => f.type === 'needs-review');
 
   console.log('\n' + divider);
-  console.log('  mozorrarri — authorization regression results');
+  console.log('  jabearri — authorization regression results');
   console.log(divider);
   console.log(`  Requests observed    : ${cov.observed}`);
   console.log(`  Replay candidates    : ${cov.replayed}`);
@@ -264,12 +264,14 @@ function saveReport(findings, store, outputPath, runContext = {}) {
     },
 
     // What was tested — answers "what exactly did you test?"
+    // Note: command args are intentionally not stored — they may contain secrets.
     runContext: {
-      target:       runContext.target      || null,
-      scope:        runContext.scope       || null,
-      exclude:      runContext.exclude     || null,
-      command:      runContext.command     || null,
-      environment:  runContext.environment || null,
+      target:                runContext.target      || null,
+      scope:                 runContext.scope       || null,
+      exclude:               runContext.exclude     || null,
+      command:               runContext.command     || null,
+      commandArgsSuppressed: runContext.command ? true : null,
+      environment:           runContext.environment || null,
       principalPair: {
         userA: runContext.userALabel || 'primary-test-user',
         userB: runContext.userBLabel || 'secondary-test-user',
@@ -284,8 +286,8 @@ function saveReport(findings, store, outputPath, runContext = {}) {
     },
 
     integrity: {
-      reportSchema:         'mozorrarri-report-v1',
-      generatedBy:          'mozorrarri 0.10.1',
+      reportSchema:         'jabearri-report-v1',
+      generatedBy:          'jabearri 0.10.1',
       detectionPrimitive:   'cross-user replay hash match',
       bodyRetentionPolicy:  'not-stored',
       tokenRetentionPolicy: 'fingerprint-only',
@@ -299,10 +301,10 @@ function saveReport(findings, store, outputPath, runContext = {}) {
 
   try {
     fs.writeFileSync(outputPath, JSON.stringify(report, null, 2), 'utf8');
-    console.log(`[mozorrarri] Report saved to ${outputPath}`);
+    console.log(`[jabearri] Report saved to ${outputPath}`);
   } catch (err) {
-    console.error(`[mozorrarri] Could not save report to ${outputPath}: ${err.message}`);
-    console.error(`[mozorrarri] Findings printed above — copy them before closing.`);
+    console.error(`[jabearri] Could not save report to ${outputPath}: ${err.message}`);
+    console.error(`[jabearri] Findings printed above — copy them before closing.`);
   }
 }
 

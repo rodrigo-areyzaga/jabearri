@@ -1,6 +1,6 @@
-# mozorrarri Report Schema — v1
+# jabearri Report Schema — v1
 
-mozorrarri v0.10.1 produces JSON reports with the following structure.
+jabearri v0.10.1 produces JSON reports with the following structure.
 
 ---
 
@@ -8,12 +8,14 @@ mozorrarri v0.10.1 produces JSON reports with the following structure.
 
 | Field | Type | Description |
 |---|---|---|
-| `version` | string | mozorrarri version that generated the report |
+| `version` | string | jabearri version that generated the report |
 | `generatedAt` | ISO-8601 string | When the report was generated |
 | `reportType` | string | Always `"authorization-regression-evidence"` |
 | `privacy` | object | Trust model — what the report does and does not store |
 | `integrity` | object | Report provenance and detection method |
 | `summary` | object | Aggregate counts |
+| `runContext` | object | What was actually tested — target, scope, exclude, principal pair |
+| `notReplayed` | array | Full breakdown of observed-but-not-replayed requests, mirrors `summary.notReplayed` count |
 | `findings` | array | Individual findings |
 
 ## privacy
@@ -28,7 +30,7 @@ mozorrarri v0.10.1 produces JSON reports with the following structure.
 
 | Field | Type | Description |
 |---|---|---|
-| `reportSchema` | string | Schema identifier: `"mozorrarri-report-v1"` |
+| `reportSchema` | string | Schema identifier: `"jabearri-report-v1"` |
 | `generatedBy` | string | Tool name and version |
 | `detectionPrimitive` | string | `"cross-user replay hash match"` |
 | `bodyRetentionPolicy` | string | `"not-stored"` |
@@ -38,13 +40,39 @@ mozorrarri v0.10.1 produces JSON reports with the following structure.
 
 | Field | Type | Description |
 |---|---|---|
+| `plain` | string | One-paragraph, non-engineer-readable summary of what was tested, what was found, and why some requests weren't replayed |
 | `observed` | number | Total authenticated requests recorded |
 | `replayCandidates` | number | Requests eligible for replay |
+| `notReplayed` | number | Count of observed requests not replayed (see top-level `notReplayed` array for the breakdown) |
 | `resourcePatterns` | number | Unique endpoint patterns |
 | `authMechanisms` | string | Auth types detected (e.g. `"bearer"`) |
 | `findings` | number | Confirmed BOLA findings |
 | `missingAuth` | number | Possible missing authentication findings |
 | `needsReview` | number | Trivial payload hash matches (likely false positives) |
+
+## runContext
+
+Answers "what exactly did you test?" Command-line arguments are intentionally never stored, since they may contain secrets.
+
+| Field | Type | Description |
+|---|---|---|
+| `target` | string or null | The upstream target URL that was proxied |
+| `scope` | array or null | Configured scope path prefixes |
+| `exclude` | array or null | Configured exclude path prefixes |
+| `command` | string or null | The wrapped command name, if run via `jabearri run -- <command>` |
+| `commandArgsSuppressed` | boolean or null | `true` when a command was wrapped (its arguments are never persisted — they may contain secrets) |
+| `environment` | string or null | Environment label, if provided |
+| `principalPair` | object | `{ userA, userB }` — labels for the two test principals (tokens themselves are never stored, only labels) |
+
+## notReplayed[]
+
+Full breakdown of every observed, in-scope request that was not replayed, deduplicated by method + path + reason. The count of this array matches `summary.notReplayed`.
+
+| Field | Type | Description |
+|---|---|---|
+| `method` | string | HTTP method of the unreplayed request |
+| `path` | string | Request path (normalized) |
+| `reason` | string | `"method_filtered"` (non-GET, out of scope by design), `"no_resource_id"` (no URL-level resource identifier to replay against), or `"deduplicated"` (same method+path+reason already recorded) |
 
 ## findings[]
 
