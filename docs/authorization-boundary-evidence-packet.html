@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>jabearri — Authorization Boundary Evidence Packet</title>
+<style>
+  :root {
+    --bg: #0d0f12;
+    --surface: #13161b;
+    --border: #1e2329;
+    --amber: #f0a500;
+    --amber-dim: #a87200;
+    --white: #f0f2f5;
+    --muted: #6b7280;
+    --red: #e05252;
+    --green: #4caf7d;
+    --mono: 'Courier New', Courier, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 48px 24px;
+  }
+
+  .page { max-width: 720px; margin: 0 auto; }
+
+  .header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+
+  .logo-line {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 20px;
+    color: var(--amber);
+  }
+
+  .version {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .header-title {
+    font-size: 13px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .section { margin-bottom: 40px; }
+
+  .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--amber-dim);
+    margin-bottom: 12px;
+    font-family: var(--mono);
+  }
+
+  .definition {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    padding: 20px 24px;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .definition strong { color: var(--amber); }
+
+  .note {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: rgba(240,165,0,0.05);
+    border: 1px solid rgba(240,165,0,0.15);
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .step-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber);
+    background: rgba(240,165,0,0.08);
+    border: 1px solid rgba(240,165,0,0.2);
+    padding: 2px 8px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .step-text { font-size: 14px; }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .meta-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+  }
+
+  .meta-key {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+
+  .meta-val { font-size: 13px; }
+  .meta-val.mono { font-family: var(--mono); font-size: 12px; }
+  .meta-val.red { color: var(--red); }
+
+  .demo-note {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: rgba(96,165,250,0.05);
+    border: 1px solid rgba(96,165,250,0.15);
+    font-size: 12px;
+    color: #60a5fa;
+  }
+
+  /* Primary finding */
+  .finding-primary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--red);
+    margin-bottom: 16px;
+  }
+
+  .finding-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .finding-id {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .badges { display: flex; gap: 8px; }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    border: 1px solid;
+  }
+
+  .badge.high { color: var(--red); border-color: var(--red); background: rgba(224,82,82,0.08); }
+  .badge.confirmed { color: var(--green); border-color: var(--green); background: rgba(76,175,125,0.08); }
+
+  .finding-body {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .finding-endpoint {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--amber);
+  }
+
+  .finding-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .finding-field { flex: 1; min-width: 140px; }
+
+  .field-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 3px;
+    font-family: var(--mono);
+  }
+
+  .field-val { font-family: var(--mono); font-size: 12px; }
+  .field-val.red { color: var(--red); }
+  .field-val.green { color: var(--green); }
+
+  .hash-block {
+    background: #0a0c0f;
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+  }
+
+  .hash-line {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    word-break: break-all;
+  }
+
+  .hash-line span { color: var(--green); }
+
+  .hash-line.match-label {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    color: var(--amber);
+    margin-bottom: 0;
+  }
+
+  .exposure-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .field-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    background: #0a0c0f;
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+  }
+
+  .field-tag.financial { color: var(--amber-dim); border-color: rgba(240,165,0,0.2); }
+  .field-tag.identifier { color: #60a5fa; border-color: rgba(96,165,250,0.2); }
+
+  .curl-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-family: var(--mono);
+  }
+
+  .curl-block {
+    background: #0a0c0f;
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #9ca3af;
+    word-break: break-all;
+    line-height: 1.8;
+  }
+
+  .curl-explainer {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .curl-explainer strong { color: var(--white); }
+
+  .cmd { color: var(--amber-dim); }
+  .flag { color: var(--muted); }
+  .token { color: #6b7280; }
+  .url { color: var(--white); }
+
+  /* Summary table */
+  .findings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .findings-table th {
+    text-align: left;
+    padding: 10px 14px;
+    background: #0a0c0f;
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .findings-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--white);
+    vertical-align: middle;
+  }
+
+  .findings-table tr:last-child td { border-bottom: none; }
+  .findings-table tr { background: var(--surface); }
+
+  .td-endpoint { color: var(--amber); }
+  .td-status { color: var(--red); }
+  .td-match { color: var(--green); }
+
+  /* Privacy */
+  .privacy-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .privacy-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+  }
+
+  .privacy-detail {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* Pilot */
+  .pilot-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    padding: 24px;
+  }
+
+  .pilot-box h3 {
+    font-size: 13px;
+    color: var(--amber);
+    margin-bottom: 8px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .pilot-focus {
+    font-size: 13px;
+    color: var(--white);
+    margin-bottom: 20px;
+    line-height: 1.6;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .pilot-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .pilot-list li {
+    display: flex;
+    gap: 12px;
+    font-size: 13px;
+  }
+
+  .pilot-list li::before {
+    content: '→';
+    color: var(--amber);
+    font-family: var(--mono);
+    flex-shrink: 0;
+  }
+
+  /* JSON packet section */
+  .json-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .json-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .json-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .json-note {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .json-body {
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #9ca3af;
+    line-height: 1.8;
+    background: #0a0c0f;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .j-key { color: #60a5fa; }
+  .j-str { color: var(--green); }
+  .j-num { color: var(--amber-dim); }
+  .j-bool-false { color: var(--red); }
+  .j-bool-true { color: var(--green); }
+  .j-punc { color: var(--muted); }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 32px 0;
+  }
+
+  .footer {
+    border-top: 1px solid var(--border);
+    padding-top: 24px;
+    margin-top: 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .footer-left {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .footer-right {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber-dim);
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-line">
+      <span class="logo">jabearri</span>
+      <span class="version">v0.10.2</span>
+    </div>
+    <div class="header-title">Authorization Boundary Evidence Packet</div>
+  </div>
+
+  <!-- What it verifies -->
+  <div class="section">
+    <div class="section-label">What jabearri verifies</div>
+    <div class="definition">
+      jabearri answers one question: <strong>does a protected resource return the same response to a different authenticated user?</strong><br><br>
+      It records real authenticated traffic from user A, replays each request using user B's token, and compares responses using content hashes. If the endpoint is expected to be owner-scoped and the replayed response matches, jabearri flags a confirmed authorization-boundary failure. No raw tokens or response bodies are stored. Response values are summarized by field path, classification signal, size, and content hash. Endpoint paths and resource identifiers are retained only where needed for reproduction.
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <div class="section">
+    <div class="section-label">How a run works</div>
+    <div class="steps">
+      <div class="step">
+        <span class="step-num">01</span>
+        <span class="step-text">Record authenticated requests from user A against target endpoints in a sandbox environment.</span>
+      </div>
+      <div class="step">
+        <span class="step-num">02</span>
+        <span class="step-text">Replay each request using user B's token. No modifications to the request — only the bearer token changes.</span>
+      </div>
+      <div class="step">
+        <span class="step-num">03</span>
+        <span class="step-text">Hash both responses using a stable semantic algorithm. Compare. If hashes match on an owner-scoped endpoint: boundary failed.</span>
+      </div>
+      <div class="step">
+        <span class="step-num">04</span>
+        <span class="step-text">Produce a reproducible evidence record with finding ID, exposure summary, and a reproduction command for independent verification.</span>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Run context -->
+  <div class="section">
+    <div class="section-label">Run context</div>
+    <div class="meta-grid">
+      <div class="meta-item">
+        <div class="meta-key">Target</div>
+        <div class="meta-val mono">OWASP Juice Shop</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-key">Tool version</div>
+        <div class="meta-val mono">jabearri v0.10.2</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-key">Requests observed</div>
+        <div class="meta-val">8</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-key">Replay candidates</div>
+        <div class="meta-val">3</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-key">Findings</div>
+        <div class="meta-val red">3 HIGH — confirmed</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-key">Auth mechanism</div>
+        <div class="meta-val mono">bearer token</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-key">Run timestamp</div>
+        <div class="meta-val mono">2026-06-14T03:39:49Z</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-key">Detection primitive</div>
+        <div class="meta-val mono">cross-user replay hash match</div>
+      </div>
+    </div>
+    <div class="demo-note">
+      <strong>Demo target:</strong> OWASP Juice Shop is an intentionally vulnerable training application maintained by OWASP. This packet demonstrates jabearri's evidence format and replay model — it is not a live third-party disclosure.
+    </div>
+  </div>
+
+  <!-- Primary finding -->
+  <div class="section">
+    <div class="section-label">Primary finding — full evidence record</div>
+
+    <div class="finding-primary">
+      <div class="finding-header">
+        <span class="finding-id">AG-20260614T033948Z-001</span>
+        <div class="badges">
+          <span class="badge high">HIGH</span>
+          <span class="badge confirmed">CONFIRMED</span>
+        </div>
+      </div>
+      <div class="finding-body">
+
+        <div class="finding-endpoint">GET /rest/basket/1</div>
+
+        <div class="finding-row">
+          <div class="finding-field">
+            <div class="field-label">User A status</div>
+            <div class="field-val green">200 OK</div>
+          </div>
+          <div class="finding-field">
+            <div class="field-label">User B replay status</div>
+            <div class="field-val red">200 OK — boundary failed</div>
+          </div>
+          <div class="finding-field">
+            <div class="field-label">Response size</div>
+            <div class="field-val">1310 bytes — identical</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="field-label" style="margin-bottom:8px;">Hash comparison</div>
+          <div class="hash-block">
+            <div class="hash-line">original &nbsp;json:<span>77e51f8b4a4f1f86e905b7b058101266f5d9bb16f3d378493a4e682d0271f06a</span></div>
+            <div class="hash-line">replay &nbsp;&nbsp;&nbsp;json:<span>77e51f8b4a4f1f86e905b7b058101266f5d9bb16f3d378493a4e682d0271f06a</span></div>
+            <div class="hash-line match-label">→ hashes match — user A's basket was returned to user B unchanged</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="field-label" style="margin-bottom:8px;">Exposed fields</div>
+          <div class="exposure-grid">
+            <span class="field-tag identifier">data.id</span>
+            <span class="field-tag identifier">data.UserId</span>
+            <span class="field-tag">data.coupon</span>
+            <span class="field-tag financial">data.Products[].price</span>
+            <span class="field-tag financial">data.Products[].deluxePrice</span>
+            <span class="field-tag identifier">data.Products[].BasketItem.id</span>
+            <span class="field-tag">data.Products[].name</span>
+            <span class="field-tag">data.Products[].description</span>
+            <span class="field-tag">data.Products[].BasketItem.quantity</span>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--muted);">
+            <span style="color:#60a5fa;">■</span> resource identifier &nbsp;&nbsp;
+            <span style="color:var(--amber-dim);">■</span> possible financial
+          </div>
+        </div>
+
+        <div>
+          <div class="curl-label">Reproduction command</div>
+          <div class="curl-block"><span class="cmd">curl</span> <span class="flag">-s -H</span> <span class="token">'Authorization: Bearer '$TOKEN_B</span> <span class="url">'http://localhost:3000/rest/basket/1'</span></div>
+          <div class="curl-explainer">
+            <strong>What this means:</strong> this is the exact HTTP request that confirmed the boundary failure. Replace <code style="color:var(--amber-dim);">$TOKEN_B</code> with user B's bearer token and run it against the target. The response will be identical to what user A received. Anyone with access to the environment can independently verify this finding — no trust in the report required.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Summary table for findings 002 and 003 -->
+    <div class="section-label" style="margin-top:24px;margin-bottom:12px;">Additional confirmed findings</div>
+    <table class="findings-table">
+      <thead>
+        <tr>
+          <th>Finding</th>
+          <th>Endpoint</th>
+          <th>Replay status</th>
+          <th>Match type</th>
+          <th>Severity</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono" style="color:var(--muted);font-size:10px;">AG-…-002</td>
+          <td class="td-endpoint">GET /rest/basket/2</td>
+          <td class="td-status">200 OK</td>
+          <td class="td-match">semantic hash match</td>
+          <td><span class="badge high">HIGH</span></td>
+        </tr>
+        <tr>
+          <td class="mono" style="color:var(--muted);font-size:10px;">AG-…-003</td>
+          <td class="td-endpoint">GET /rest/basket/3</td>
+          <td class="td-status">200 OK</td>
+          <td class="td-match">semantic hash match</td>
+          <td><span class="badge high">HIGH</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted);">All three findings share the same pattern: one resource ID family, one broken authorization boundary, three confirmed instances. Full machine-readable report available on request.</div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Privacy model -->
+  <div class="section">
+    <div class="section-label">Privacy model</div>
+    <div class="privacy-row">
+      <div class="privacy-item"><span class="dot"></span>Raw tokens not stored</div>
+      <div class="privacy-item"><span class="dot"></span>Raw response bodies not stored</div>
+      <div class="privacy-item"><span class="dot"></span>Raw values not stored</div>
+      <div class="privacy-item"><span class="dot"></span>Token fingerprint only</div>
+    </div>
+    <div class="privacy-detail">
+      No raw tokens or response bodies are stored. Response values are summarized by field path, classification signal, size, and content hash. Endpoint paths and resource identifiers are retained only where needed for reproduction. Evidence is tied to a content hash — not to live data.
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Pilot offer -->
+  <div class="section">
+    <div class="section-label">What a pilot looks like</div>
+    <div class="pilot-box">
+      <h3>Scope</h3>
+      <div class="pilot-focus">
+        The goal is not a broad pentest. The goal is to verify whether specific owner-scoped API objects — accounts, wallets, payments, loans, patient records, provider records, tenant-scoped resources — can cross user or account boundaries under authenticated replay.
+      </div>
+      <ul class="pilot-list">
+        <li>3–5 read-only endpoints in your sandbox or staging environment</li>
+        <li>Two test accounts you create and control — no access to production data</li>
+        <li>Explicit written authorization before any run begins</li>
+        <li>Evidence report delivered in the format shown above</li>
+        <li>Reproduction command for every confirmed finding</li>
+        <li>One follow-up call to walk through findings and answer technical questions</li>
+      </ul>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Full JSON evidence packet -->
+  <div class="section">
+    <div class="section-label">Full JSON evidence — Finding 001</div>
+    <div style="margin-bottom:12px;font-size:12px;color:var(--muted);">Machine-readable output for technical review. <span id="toggle-link" style="color:var(--amber);cursor:pointer;text-decoration:underline;" onclick="toggleJSON()">Show JSON ↓</span></div>
+    <div id="json-wrapper" style="display:none;">
+    <div class="json-section">
+      <div class="json-header">
+        <span class="json-title">jabearri-report-v1 — AG-20260614T033948Z-001</span>
+        <span class="json-note">raw machine-readable output</span>
+      </div>
+      <div class="json-body"><span class="j-punc">{</span>
+  <span class="j-key">"findingId"</span><span class="j-punc">:</span> <span class="j-str">"AG-20260614T033948Z-001"</span><span class="j-punc">,</span>
+  <span class="j-key">"severity"</span><span class="j-punc">:</span> <span class="j-str">"high"</span><span class="j-punc">,</span>
+  <span class="j-key">"type"</span><span class="j-punc">:</span> <span class="j-str">"broken-access-control"</span><span class="j-punc">,</span>
+  <span class="j-key">"confidence"</span><span class="j-punc">:</span> <span class="j-str">"confirmed"</span><span class="j-punc">,</span>
+  <span class="j-key">"method"</span><span class="j-punc">:</span> <span class="j-str">"GET"</span><span class="j-punc">,</span>
+  <span class="j-key">"path"</span><span class="j-punc">:</span> <span class="j-str">"/rest/basket/1"</span><span class="j-punc">,</span>
+  <span class="j-key">"tokenType"</span><span class="j-punc">:</span> <span class="j-str">"bearer"</span><span class="j-punc">,</span>
+  <span class="j-key">"originalStatus"</span><span class="j-punc">:</span> <span class="j-num">200</span><span class="j-punc">,</span>
+  <span class="j-key">"replayStatus"</span><span class="j-punc">:</span> <span class="j-num">200</span><span class="j-punc">,</span>
+  <span class="j-key">"originalSize"</span><span class="j-punc">:</span> <span class="j-num">1310</span><span class="j-punc">,</span>
+  <span class="j-key">"replaySize"</span><span class="j-punc">:</span> <span class="j-num">1310</span><span class="j-punc">,</span>
+  <span class="j-key">"matchType"</span><span class="j-punc">:</span> <span class="j-str">"semantic-hash"</span><span class="j-punc">,</span>
+  <span class="j-key">"evidence"</span><span class="j-punc">: {</span>
+    <span class="j-key">"originalContentHash"</span><span class="j-punc">:</span> <span class="j-str">"json:77e51f8b4a4f1f86e905b7b058101266f5d9bb16f3d378493a4e682d0271f06a"</span><span class="j-punc">,</span>
+    <span class="j-key">"replayContentHash"</span><span class="j-punc">:</span> <span class="j-str">"json:77e51f8b4a4f1f86e905b7b058101266f5d9bb16f3d378493a4e682d0271f06a"</span><span class="j-punc">,</span>
+    <span class="j-key">"matchedHash"</span><span class="j-punc">:</span> <span class="j-str">"json:77e51f8b4a4f1f86e905b7b058101266f5d9bb16f3d378493a4e682d0271f06a"</span><span class="j-punc">,</span>
+    <span class="j-key">"matchType"</span><span class="j-punc">:</span> <span class="j-str">"semantic-hash"</span>
+  <span class="j-punc">},</span>
+  <span class="j-key">"curl"</span><span class="j-punc">:</span> <span class="j-str">"curl -s -H 'Authorization: Bearer '$TOKEN_B 'http://localhost:3000/rest/basket/1'"</span><span class="j-punc">,</span>
+  <span class="j-key">"privacy"</span><span class="j-punc">: {</span>
+    <span class="j-key">"rawTokensStored"</span><span class="j-punc">:</span> <span class="j-bool-false">false</span><span class="j-punc">,</span>
+    <span class="j-key">"rawBodiesStored"</span><span class="j-punc">:</span> <span class="j-bool-false">false</span><span class="j-punc">,</span>
+    <span class="j-key">"rawValuesStored"</span><span class="j-punc">:</span> <span class="j-bool-false">false</span>
+  <span class="j-punc">},</span>
+  <span class="j-key">"exposureSummary"</span><span class="j-punc">: {</span>
+    <span class="j-key">"bodyBytes"</span><span class="j-punc">:</span> <span class="j-num">1310</span><span class="j-punc">,</span>
+    <span class="j-key">"fieldPaths"</span><span class="j-punc">: [</span>
+      <span class="j-str">"data.id"</span><span class="j-punc">,</span> <span class="j-str">"data.UserId"</span><span class="j-punc">,</span> <span class="j-str">"data.coupon"</span><span class="j-punc">,</span>
+      <span class="j-str">"data.Products[].price"</span><span class="j-punc">,</span> <span class="j-str">"data.Products[].deluxePrice"</span><span class="j-punc">,</span>
+      <span class="j-str">"data.Products[].BasketItem.id"</span><span class="j-punc">,</span> <span class="j-str">"data.Products[].name"</span><span class="j-punc">,</span>
+      <span class="j-str">"data.Products[].BasketItem.quantity"</span>
+    <span class="j-punc">],</span>
+    <span class="j-key">"classificationSignals"</span><span class="j-punc">: [</span>
+      <span class="j-punc">{</span> <span class="j-key">"field"</span><span class="j-punc">:</span> <span class="j-str">"data.UserId"</span><span class="j-punc">,</span> <span class="j-key">"classification"</span><span class="j-punc">:</span> <span class="j-str">"resource_identifier"</span><span class="j-punc">,</span> <span class="j-key">"confidence"</span><span class="j-punc">:</span> <span class="j-str">"high"</span> <span class="j-punc">},</span>
+      <span class="j-punc">{</span> <span class="j-key">"field"</span><span class="j-punc">:</span> <span class="j-str">"data.Products[].price"</span><span class="j-punc">,</span> <span class="j-key">"classification"</span><span class="j-punc">:</span> <span class="j-str">"possible_financial"</span><span class="j-punc">,</span> <span class="j-key">"confidence"</span><span class="j-punc">:</span> <span class="j-str">"high"</span> <span class="j-punc">}</span>
+    <span class="j-punc">]</span>
+  <span class="j-punc">}</span>
+<span class="j-punc">}</span></div>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted);">Full report including all three findings and run metadata available on request.</div>
+    </div><!-- end json-wrapper -->
+  </div>
+
+  <script>
+    function toggleJSON() {
+      const wrapper = document.getElementById('json-wrapper');
+      const link = document.getElementById('toggle-link');
+      if (wrapper.style.display === 'none') {
+        wrapper.style.display = 'block';
+        link.textContent = 'Hide JSON ↑';
+      } else {
+        wrapper.style.display = 'none';
+        link.textContent = 'Show JSON ↓';
+      }
+    }
+  </script>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-left">
+      jabearri — part of the Haritzarri tool family<br>
+      github.com/rodrigo-areyzaga/jabearri
+    </div>
+    <div class="footer-right">Evidence, not assumptions.</div>
+  </div>
+
+  <div style="margin-top:24px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.08em;">
+    DEMO PACKET — NO THIRD-PARTY SYSTEMS WERE TESTED
+  </div>
+
+</div>
+</body>
+</html>
