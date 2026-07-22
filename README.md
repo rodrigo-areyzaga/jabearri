@@ -53,7 +53,7 @@ This is confirmed cross-user replay detection: when scoped to user-owned resourc
 1. jabearri starts as a local HTTP proxy on port `8877`
 2. Your tests run normally — jabearri silently records every authenticated request
 3. When tests finish, jabearri replays each request using a second user's credential
-4. Any endpoint that returns structurally identical authenticated data to a different user is flagged
+4. Any endpoint that returns structurally identical authenticated data under a second configured credential is flagged
 
 No new testing concepts. In most setups, one config file is enough.
 
@@ -73,9 +73,9 @@ Bob's replay:
 Match → identical authenticated data exposure
 ```
 
-The hashes either match or they don't. There is no scoring, no threshold, no grey area. If they match, user B received exactly what user A received. On ownership-scoped endpoints, that is a confirmed authorization failure.
+The hashes either match or they don't. There is no scoring, no threshold, no grey area. If they match, the second credential received exactly what the first credential received. On ownership-scoped endpoints, that is a confirmed authorization failure.
 
-**Scope:** jabearri detects endpoints that return structurally identical authenticated data to a different user. Partial information leaks and structurally different but unauthorized responses require manual review. The tool prioritizes precision — one confirmed finding you can trust is worth more than ten warnings you have to triage.
+**Scope:** jabearri detects endpoints that return structurally identical authenticated data under a second configured credential. Partial information leaks and structurally different but unauthorized responses require manual review. The tool prioritizes precision — one confirmed finding you can trust is worth more than ten warnings you have to triage.
 
 ---
 
@@ -203,9 +203,9 @@ Wrapper mode is the recommended path for CI. If your setup can't use it (for exa
       User B got   : 200 (98 bytes)
 
       Why flagged:
-        · Same endpoint replayed under a different authenticated user
+        · Same endpoint replayed using the configured second credential
         · Response hashes matched after JSON normalization
-        · SHA256(normalized JSON) identical for both principals
+        · SHA256(normalized JSON) identical between the recorded and replayed responses
 
       Exposure Summary:
         Fields exposed : id, owner, item, total, status
@@ -269,7 +269,7 @@ Specifically, jabearri does not detect:
 
 These are intentional scope boundaries, not implementation gaps. The narrower the claim, the more trustworthy the finding.
 
-> jabearri confirms one specific thing: user B received the same protected representation user A received. If the failure mode looks different from that, it is outside scope by design.
+> jabearri confirms one specific thing: the second configured credential received the same protected representation the first credential received. If the failure mode looks different from that, it is outside scope by design.
 
 Full known-limitations detail (proxy quirks, multi-user suites, tenant headers, etc.) is in [`docs/reference.md`](docs/reference.md).
 
